@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EAN Scanner</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --border: #2a2a2a;
+    --accent: #00e5a0;
+    --accent-dim: rgba(0, 229, 160, 0.12);
+    --text: #f0f0f0;
+    --text-muted: #666;
+    --red: #ff4060;
+    --font-mono: 'Courier New', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+  }
+
+  .logo {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .logo span {
+    display: block;
+    height: 24px;
+    background: var(--accent);
+    border-radius: 1px;
+  }
+
+  .logo span:nth-child(1) { width: 3px; }
+  .logo span:nth-child(2) { width: 1px; }
+  .logo span:nth-child(3) { width: 4px; }
+  .logo span:nth-child(4) { width: 2px; }
+  .logo span:nth-child(5) { width: 3px; }
+  .logo span:nth-child(6) { width: 1px; }
+  .logo span:nth-child(7) { width: 2px; }
+
+  header h1 {
+    font-size: 13px;
+    font-weight: normal;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  header small {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* Camera viewport */
+  #scanner-wrap {
+    position: relative;
+    width: 100%;
+    background: #000;
+    overflow: hidden;
+    flex-shrink: 0;
+    /* aspect ratio set by JS */
+  }
+
+  #interactive {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+  }
+
+  #interactive video,
+  #interactive canvas {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+    display: block;
+  }
+
+  #interactive canvas.drawingBuffer { display: none; }
+
+  /* Scan overlay */
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  /* Corner brackets */
+  .scan-frame {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 75%;
+    height: 80px;
+  }
+
+  .scan-frame::before,
+  .scan-frame::after,
+  .scan-frame .c3,
+  .scan-frame .c4 {
+    content: '';
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+
+  .scan-frame::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+  .scan-frame::after  { top: 0; right: 0; border-width: 2px 2px 0 0; }
+  .scan-frame .c3     { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+  .scan-frame .c4     { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+  /* Scanning line */
+  .scan-line {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 75%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    animation: scanMove 2s ease-in-out infinite;
+  }
+
+  @keyframes scanMove {
+    0%, 100% { transform: translate(-50%, calc(-50% - 30px)); opacity: 0.6; }
+    50% { transform: translate(-50%, calc(-50% + 30px)); opacity: 1; }
+  }
+
+  .scan-line.paused { animation-play-state: paused; }
+
+  /* Flash on success */
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 20;
+    transition: opacity 0.05s;
+  }
+
+  .flash.active { opacity: 0.25; }
+
+  /* Status bar */
+  #status-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    min-height: 38px;
+  }
+
+  #status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+
+  #status-dot.active { background: var(--accent); animation: pulse 1.2s infinite; }
+  #status-dot.error  { background: var(--red); animation: none; }
+  #status-dot.found  { background: var(--accent); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  #status-text { color: var(--text-muted); flex: 1; }
+
+  /* Controls */
+  #controls {
+    padding: 12px 20px;
+    display: flex;
+    gap: 8px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  button {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-muted);
+    transition: all 0.15s;
+    flex: 1;
+  }
+
+  button:hover { border-color: var(--accent); color: var(--accent); }
+
+  button.primary {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  button:disabled { opacity: 0.3; pointer-events: none; }
+
+  /* Results */
+  #results-section {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+  }
+
+  .section-header {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  #clear-btn-small {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    flex: unset;
+  }
+
+  #results-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .result-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: slideIn 0.2s ease;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+
+  .result-item:hover { border-color: var(--accent); }
+  .result-item.new { border-color: var(--accent); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-num {
+    font-size: 10px;
+    color: var(--text-muted);
+    min-width: 20px;
+  }
+
+  .result-code {
+    font-size: 16px;
+    letter-spacing: 0.12em;
+    flex: 1;
+    color: var(--text);
+  }
+
+  .result-meta {
+    text-align: right;
+  }
+
+  .result-type {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .result-time {
+    font-size: 9px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .copy-hint {
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-align: center;
+    margin-top: 8px;
+    opacity: 0.6;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+  }
+
+  .empty-state .big {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.3;
+  }
+
+  .empty-state p {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    line-height: 1.8;
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--accent);
+    color: #000;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    padding: 8px 20px;
+    border-radius: 2px;
+    opacity: 0;
+    transition: all 0.25s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 100;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Start screen */
+  #start-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+    flex: 1;
+  }
+
+  .big-icon {
+    font-size: 60px;
+    margin-bottom: 24px;
+    opacity: 0.4;
+  }
+
+  #start-screen h2 {
+    font-size: 13px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+    font-weight: normal;
+  }
+
+  #start-screen p {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.9;
+    letter-spacing: 0.05em;
+    max-width: 280px;
+    margin-bottom: 32px;
+  }
+
+  #start-btn {
+    font-size: 12px;
+    padding: 14px 40px;
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-dim);
+    flex: unset;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <h1>EAN Scanner</h1>
+  <small>EAN-8 · EAN-13</small>
+</header>
+
+<!-- Start screen -->
+<div id="start-screen">
+  <div class="big-icon">▮▮▮▮▮▮▮▮</div>
+  <h2>Barcode Scanner</h2>
+  <p>Scannt EAN-8 und EAN-13 Barcodes mit der Smartphone-Kamera.<br>Kamera auf den Barcode richten — Erkennung erfolgt automatisch.</p>
+  <button id="start-btn" onclick="startScanner()">KAMERA STARTEN</button>
+</div>
+
+<!-- Scanner (hidden initially) -->
+<div id="scanner-ui" style="display:none; flex-direction:column; flex:1;">
+  <div id="scanner-wrap">
+    <div id="interactive" class="viewport"></div>
+    <div class="scan-overlay">
+      <div class="scan-frame"><span class="c3"></span><span class="c4"></span></div>
+      <div class="scan-line" id="scan-line"></div>
+    </div>
+    <div class="flash" id="flash"></div>
+  </div>
+
+  <div id="status-bar">
+    <div id="status-dot"></div>
+    <span id="status-text">Initialisiere Kamera…</span>
+  </div>
+
+  <div id="controls">
+    <button id="pause-btn" onclick="togglePause()" disabled>PAUSE</button>
+    <button id="clear-btn" onclick="clearResults()">LÖSCHEN</button>
+    <button id="stop-btn" onclick="stopScanner()">STOP</button>
+  </div>
+
+  <div id="results-section">
+    <div class="section-header">
+      <span>ERGEBNISSE</span>
+      <span id="result-count">0</span>
+    </div>
+    <div id="results-list">
+      <div class="empty-state">
+        <div class="big">|||||||||||||||</div>
+        <p>Noch keine Codes gescannt.<br>Barcode in den Rahmen halten.</p>
+      </div>
+    </div>
+    <p class="copy-hint">↑ Code antippen zum Kopieren</p>
+  </div>
+</div>
+
+<div id="toast">Kopiert!</div>
+
+<script>
+  let scanning = false;
+  let paused = false;
+  let results = [];
+  const DEBOUNCE_MS = 1500;
+  let lastCode = '';
+  let lastCodeTime = 0;
+
+  function setStatus(text, state) {
+    document.getElementById('status-text').textContent = text;
+    const dot = document.getElementById('status-dot');
+    dot.className = state || '';
+  }
+
+  function startScanner() {
+    document.getElementById('start-screen').style.display = 'none';
+    const ui = document.getElementById('scanner-ui');
+    ui.style.display = 'flex';
+
+    // Set viewport height (4:3 ish)
+    const wrap = document.getElementById('scanner-wrap');
+    wrap.style.height = Math.round(window.innerWidth * 0.65) + 'px';
+
+    setStatus('Initialisiere Kamera…', '');
+
+    Quagga.init({
+      inputStream: {
+        name: 'Live',
+        type: 'LiveStream',
+        target: document.querySelector('#interactive'),
+        constraints: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        area: {
+          top: '20%',
+          right: '5%',
+          left: '5%',
+          bottom: '20%',
+        },
+      },
+      decoder: {
+        readers: ['ean_reader', 'ean_8_reader'],
+        debug: { showCanvas: false, showPatches: false, showFoundPatches: false,
+                 showSkeleton: false, showLabels: false, showPatchLabels: false,
+                 showRemainingPatchLabels: false }
+      },
+      locate: true,
+      numOfWorkers: navigator.hardwareConcurrency > 2 ? 2 : 1,
+      frequency: 10,
+    }, function(err) {
+      if (err) {
+        setStatus('Kamera-Fehler: ' + err.message, 'error');
+        return;
+      }
+      Quagga.start();
+      scanning = true;
+      paused = false;
+      document.getElementById('pause-btn').disabled = false;
+      setStatus('Scannt — Barcode in Rahmen halten', 'active');
+    });
+
+    Quagga.onDetected(onDetected);
+    Quagga.onProcessed(onProcessed);
+  }
+
+  function onDetected(result) {
+    if (paused) return;
+    const code = result.codeResult.code;
+    const format = result.codeResult.format;
+    const now = Date.now();
+
+    // Debounce same code
+    if (code === lastCode && (now - lastCodeTime) < DEBOUNCE_MS) return;
+    lastCode = code;
+    lastCodeTime = now;
+
+    // Validate EAN checksum
+    if (!validateEAN(code)) return;
+
+    // Flash
+    const flash = document.getElementById('flash');
+    flash.classList.add('active');
+    setTimeout(() => flash.classList.remove('active'), 120);
+
+    // Haptic
+    if (navigator.vibrate) navigator.vibrate(60);
+
+    addResult(code, format);
+    setStatus('✓ ' + code + ' erkannt', 'found');
+    setTimeout(() => {
+      if (scanning && !paused) setStatus('Scannt — Barcode in Rahmen halten', 'active');
+    }, 2000);
+  }
+
+  function onProcessed(result) {
+    // Keep processing but don't draw debug overlays
+  }
+
+  function validateEAN(code) {
+    if (!/^\d{8}$|^\d{13}$/.test(code)) return false;
+    const digits = code.split('').map(Number);
+    const check = digits.pop();
+    const sum = digits.reduce((acc, d, i) => {
+      return acc + (code.length === 13 ? (i % 2 === 0 ? d : d * 3) : (i % 2 === 0 ? d * 3 : d));
+    }, 0);
+    return (10 - (sum % 10)) % 10 === check;
+  }
+
+  function addResult(code, format) {
+    const typeLabel = format === 'ean_8' ? 'EAN-8' : 'EAN-13';
+    const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    results.unshift({ code, type: typeLabel, time });
+
+    const list = document.getElementById('results-list');
+
+    // Remove empty state
+    const empty = list.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const item = document.createElement('div');
+    item.className = 'result-item new';
+    item.innerHTML = `
+      <span class="result-num">${results.length}</span>
+      <span class="result-code">${code}</span>
+      <div class="result-meta">
+        <div class="result-type">${typeLabel}</div>
+        <div class="result-time">${time}</div>
+      </div>
+    `;
+    item.onclick = () => copyCode(code, item);
+
+    list.prepend(item);
+    setTimeout(() => item.classList.remove('new'), 600);
+
+    document.getElementById('result-count').textContent = results.length;
+  }
+
+  async function copyCode(code, el) {
+    try {
+      await navigator.clipboard.writeText(code);
+      showToast('Kopiert: ' + code);
+    } catch {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('Kopiert: ' + code);
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function togglePause() {
+    paused = !paused;
+    const btn = document.getElementById('pause-btn');
+    const line = document.getElementById('scan-line');
+    if (paused) {
+      btn.textContent = 'WEITER';
+      btn.classList.add('primary');
+      line.classList.add('paused');
+      setStatus('Pausiert', '');
+    } else {
+      btn.textContent = 'PAUSE';
+      btn.classList.remove('primary');
+      line.classList.remove('paused');
+      setStatus('Scannt — Barcode in Rahmen halten', 'active');
+    }
+  }
+
+  function clearResults() {
+    results = [];
+    lastCode = '';
+    lastCodeTime = 0;
+    const list = document.getElementById('results-list');
+    list.innerHTML = `<div class="empty-state">
+      <div class="big">|||||||||||||||</div>
+      <p>Noch keine Codes gescannt.<br>Barcode in den Rahmen halten.</p>
+    </div>`;
+    document.getElementById('result-count').textContent = '0';
+  }
+
+  function stopScanner() {
+    if (scanning) {
+      Quagga.offDetected(onDetected);
+      Quagga.offProcessed(onProcessed);
+      Quagga.stop();
+      scanning = false;
+    }
+    document.getElementById('scanner-ui').style.display = 'none';
+    document.getElementById('start-screen').style.display = 'flex';
+    clearResults();
+  }
+</script>
+</body>
+</html>
