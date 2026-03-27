@@ -3,130 +3,130 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Preisschild Scanner · Budni Rückstand-Check</title>
+<title>Barcode Scanner · Budni Rückstand-Check</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.1/umd/index.min.js"></script>
 <style>
 :root {
-  --bg: #0e0e0e;
-  --surface: #1a1a1a;
-  --surface2: #222;
-  --border: #2e2e2e;
-  --accent: #c8ff00;
-  --accent2: #ff6b35;
-  --text: #f0f0f0;
-  --muted: #666;
-  --success: #00ff88;
-  --warn: #ffcc00;
-  --danger: #ff4444;
+  --bg: #0e0e0e; --surface: #1a1a1a; --surface2: #222;
+  --border: #2e2e2e; --accent: #c8ff00; --text: #f0f0f0;
+  --muted: #666; --success: #00ff88; --warn: #ffcc00;
+  --danger: #ff4444; --info: #4db8ff;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
 
 header {
   display: flex; align-items: center; gap: 16px;
-  padding: 18px 28px; border-bottom: 1px solid var(--border);
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
   background: var(--surface); position: sticky; top: 0; z-index: 100;
 }
 .logo { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 0.1em; }
 .logo span { color: var(--muted); }
-.header-stats { margin-left: auto; display: flex; gap: 20px; }
+.hstats { margin-left: auto; display: flex; gap: 20px; }
 .hstat { font-family: 'Space Mono', monospace; font-size: 11px; text-align: right; }
-.hstat .val { color: var(--accent); font-size: 18px; display: block; line-height: 1; }
-.hstat .lbl { color: var(--muted); font-size: 9px; letter-spacing: 0.06em; }
+.hstat .val { font-size: 18px; display: block; line-height: 1; color: var(--accent); }
+.hstat .lbl { font-size: 9px; color: var(--muted); letter-spacing: 0.06em; }
 
-.app { display: grid; grid-template-columns: 400px 1fr; min-height: calc(100vh - 57px); }
-@media (max-width: 800px) { .app { grid-template-columns: 1fr; } }
+.app { display: grid; grid-template-columns: 380px 1fr; min-height: calc(100vh - 55px); }
+@media (max-width: 780px) { .app { grid-template-columns: 1fr; } }
 
-.left-panel { border-right: 1px solid var(--border); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+/* ── LEFT ── */
+.left { border-right: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 
-.rs-box { border: 1px solid var(--border); border-radius: 6px; padding: 16px; background: var(--surface); }
+.rs-box { border: 1px solid var(--border); border-radius: 6px; padding: 14px; background: var(--surface); }
 .rs-box.loaded { border-color: var(--success); background: #001a0d; }
-.rs-title { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
-.rs-status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-.rs-status.ok { color: var(--success); }
+.box-title { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+.rs-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.rs-row.ok { color: var(--success); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
-.dot.ok { background: var(--success); animation: pulse 2s infinite; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-.btn-load { margin-top: 10px; background: transparent; border: 1px dashed var(--border); color: var(--muted); font-family: 'Space Mono', monospace; font-size: 11px; padding: 8px 14px; border-radius: 4px; cursor: pointer; width: 100%; transition: all 0.15s; text-align: center; }
-.btn-load:hover { border-color: var(--accent); color: var(--accent); }
-.rs-meta { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--success); margin-top: 6px; }
+.dot.ok { background: var(--success); animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.rs-meta { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--success); margin-top: 5px; }
+.rs-kw { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); margin-top: 3px; font-weight: 700; }
+.btn-file { margin-top: 8px; width: 100%; background: transparent; border: 1px dashed var(--border); color: var(--muted); font-family: 'Space Mono', monospace; font-size: 11px; padding: 7px; border-radius: 4px; cursor: pointer; transition: all .15s; }
+.btn-file:hover { border-color: var(--accent); color: var(--accent); }
+input[type=file] { display: none; }
 
-.drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--surface); position: relative; overflow: hidden; }
-.drop-zone::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(200,255,0,0.04) 0%, transparent 70%); pointer-events: none; }
-.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: #1e2200; }
-.drop-icon { font-size: 36px; margin-bottom: 10px; display: block; }
-.drop-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-.drop-sub { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
-.btn-pick { margin-top: 14px; background: var(--accent); color: #000; border: none; padding: 10px 22px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: 4px; transition: all 0.15s; display: inline-block; }
-.btn-pick:hover { background: #d4ff1a; }
-input[type="file"] { display: none; }
+/* ── SCANNER BOX ── */
+.scan-box { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.cam-wrap { position: relative; background: #000; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; }
+#video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cam-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.scan-frame {
+  width: 70%; aspect-ratio: 3/1;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+  position: relative;
+}
+.scan-line {
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: var(--accent); opacity: 0.8;
+  animation: scanline 1.8s ease-in-out infinite;
+}
+@keyframes scanline { 0%,100%{top:0%} 50%{top:100%} }
+.cam-hint { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; font-family: 'Space Mono', monospace; font-size: 10px; color: rgba(255,255,255,0.5); }
 
-#preview-box { display: none; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface); }
-#preview-box.visible { display: block; }
-#previewImg { width: 100%; display: block; max-height: 200px; object-fit: contain; padding: 10px; background: #111; }
-.preview-lbl { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); padding: 7px 12px; border-top: 1px solid var(--border); letter-spacing: 0.08em; text-transform: uppercase; }
+.scan-controls { padding: 12px; display: flex; gap: 8px; align-items: center; }
+.btn-scan { background: var(--accent); color: #000; border: none; padding: 10px 20px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: 4px; transition: all .15s; flex: 1; }
+.btn-scan:hover { background: #d4ff1a; }
+.btn-scan.stop { background: var(--danger); color: #fff; }
+.btn-scan.stop:hover { background: #ff6666; }
+.cam-status { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
 
-#prog-box { display: none; }
-#prog-box.visible { display: block; }
-.prog-bar-wrap { background: var(--surface2); border-radius: 4px; height: 4px; overflow: hidden; margin-bottom: 8px; }
-.prog-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; width: 0%; }
-.prog-text { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
+/* ── RESULT CARD ── */
+#result-card { display: none; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+#result-card.visible { display: block; }
+.result-banner { padding: 14px 16px; display: flex; align-items: center; gap: 12px; font-family: 'Space Mono', monospace; font-size: 13px; font-weight: 700; border-radius: 0; }
+.result-icon { font-size: 24px; }
+.result-sub { font-size: 10px; font-weight: 400; margin-top: 3px; opacity: .7; }
+.result-fields { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.rf { display: flex; gap: 8px; align-items: baseline; padding: 8px 10px; background: var(--surface2); border-radius: 4px; border: 1px solid var(--border); }
+.rf-lbl { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; min-width: 100px; flex-shrink: 0; }
+.rf-val { font-size: 13px; font-weight: 600; }
+.rf-val.mono { font-family: 'Space Mono', monospace; font-size: 12px; }
+.rf-val.big  { font-family: 'Space Mono', monospace; font-size: 16px; color: var(--accent); }
 
-#match-box { display: none; border-radius: 6px; overflow: hidden; }
-#match-box.visible { display: block; }
-.match-banner { padding: 14px 16px; display: flex; align-items: center; gap: 10px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; border-radius: 6px; }
-.match-icon { font-size: 20px; }
-.match-detail { font-size: 11px; font-weight: 400; margin-top: 4px; opacity: 0.7; }
-
-#fields-box { display: none; }
-#fields-box.visible { display: block; }
-.sec-hdr { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-.sec-hdr::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-.fields-grid { display: flex; flex-direction: column; gap: 6px; }
-.field-row { display: flex; align-items: baseline; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 10px 12px; }
-.field-row.hl { border-color: var(--accent); background: #1a2200; }
-.field-lbl { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; min-width: 110px; flex-shrink: 0; }
-.field-val { font-size: 14px; font-weight: 600; }
-.field-val.mono { font-family: 'Space Mono', monospace; font-size: 12px; }
-.field-val.price { font-family: 'Space Mono', monospace; font-size: 20px; color: var(--accent); }
-
-.right-panel { padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
-.log-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.btn-sm { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 7px 14px; font-family: 'Space Mono', monospace; font-size: 11px; cursor: pointer; border-radius: 4px; transition: all 0.15s; }
+/* ── RIGHT ── */
+.right { padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn-sm { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 7px 14px; font-family: 'Space Mono', monospace; font-size: 11px; cursor: pointer; border-radius: 4px; transition: all .15s; }
 .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
-.btn-sm.danger:hover { border-color: var(--danger); color: var(--danger); }
-.log-count { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); margin-left: auto; }
+.btn-sm.d:hover { border-color: var(--danger); color: var(--danger); }
+.log-count { margin-left: auto; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); }
 
-.log-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.sec-hdr { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; display: flex; align-items: center; gap: 8px; }
+.sec-hdr::after { content:''; flex:1; height:1px; background:var(--border); }
+
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
 table { width: 100%; border-collapse: collapse; font-size: 12px; }
-th { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; }
-td { padding: 9px 12px; border-bottom: 1px solid #1e1e1e; vertical-align: middle; }
+th { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: .07em; text-transform: uppercase; padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; }
+td { padding: 8px 12px; border-bottom: 1px solid #1c1c1c; vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
-tr:hover td { background: #1e1e1e; }
-.tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; }
-.tag.hit  { background: #1a0000; color: var(--danger); border: 1px solid var(--danger); }
-.tag.ok   { background: #001a0d; color: var(--success); border: 1px solid var(--success); }
-.tag.avail{ background: #001220; color: #4db8ff; border: 1px solid #4db8ff; }
-.tag.nors { background: #1a1200; color: var(--warn); border: 1px solid var(--warn); }
+tr:hover td { background: #1c1c1c; }
+.tag { display: inline-block; padding: 2px 7px; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; }
+.tag.hit   { background:#1a0000; color:var(--danger); border:1px solid var(--danger); }
+.tag.ok    { background:#001a0d; color:var(--success); border:1px solid var(--success); }
+.tag.avail { background:#001220; color:var(--info); border:1px solid var(--info); }
+.tag.nors  { background:#1a1200; color:var(--warn); border:1px solid var(--warn); }
 .mono-sm { font-family: 'Space Mono', monospace; font-size: 11px; }
-.del-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; }
-.del-btn:hover { color: var(--danger); }
-.empty-log { text-align: center; padding: 60px 20px; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 12px; }
+.del-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:0 4px; }
+.del-btn:hover { color:var(--danger); }
+.empty-log { text-align:center; padding:50px 20px; color:var(--muted); font-family:'Space Mono',monospace; font-size:12px; }
 
-details { background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
-summary { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); padding: 8px 12px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; }
-.raw-txt { padding: 10px 12px; font-family: 'Space Mono', monospace; font-size: 11px; color: #888; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; border-top: 1px solid var(--border); }
-
-.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #000; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; padding: 10px 20px; border-radius: 4px; z-index: 999; pointer-events: none; }
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--accent); color:#000; font-family:'Space Mono',monospace; font-size:12px; font-weight:700; padding:10px 20px; border-radius:4px; z-index:999; pointer-events:none; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">Preisschild <span>/</span> Scanner <span>·</span> Rückstand-Check</div>
-  <div class="header-stats">
+  <div class="logo">Budni <span>/</span> Rückstand-Check</div>
+  <div class="hstats">
     <div class="hstat"><span class="val" id="hTotal">0</span><span class="lbl">GESCANNT</span></div>
     <div class="hstat"><span class="val" id="hHit" style="color:var(--danger)">0</span><span class="lbl">RÜCKSTAND</span></div>
     <div class="hstat"><span class="val" id="hOk" style="color:var(--success)">0</span><span class="lbl">OK / VERF.</span></div>
@@ -134,68 +134,55 @@ summary { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--mu
 </header>
 
 <div class="app">
-  <div class="left-panel">
+  <!-- ── LEFT ── -->
+  <div class="left">
 
-    <!-- RS LOAD -->
     <div class="rs-box" id="rsBox">
-      <div class="rs-title">Referenzdatei (rs.xlsx)</div>
-      <div class="rs-status" id="rsStatus"><span class="dot" id="rsDot"></span>Nicht geladen</div>
-      <button class="btn-load" onclick="document.getElementById('rsFile').click()">rs.xlsx manuell laden</button>
-      <input type="file" id="rsFile" accept=".xlsx,.xls">
+      <div class="box-title">Referenzdatei · rs.xlsx</div>
+      <div class="rs-row" id="rsRow"><span class="dot" id="rsDot"></span>Nicht geladen</div>
+      <div class="rs-kw" id="rsKw"></div>
       <div class="rs-meta" id="rsMeta"></div>
+      <button class="btn-file" onclick="document.getElementById('rsFile').click()">Manuell laden</button>
+      <input type="file" id="rsFile" accept=".xlsx,.xls">
     </div>
 
-    <!-- SCANNER -->
-    <div class="drop-zone" id="dropZone">
-      <span class="drop-icon">📷</span>
-      <div class="drop-title">Preisschild scannen</div>
-      <div class="drop-sub">Foto aufnehmen oder hochladen</div><br>
-      <button class="btn-pick" onclick="document.getElementById('imgFile').click()">Bild auswählen</button>
-      <input type="file" id="imgFile" accept="image/*" capture="environment">
+    <div class="scan-box">
+      <div class="cam-wrap">
+        <video id="video" playsinline muted></video>
+        <div class="cam-overlay">
+          <div class="scan-frame"><div class="scan-line"></div></div>
+        </div>
+        <div class="cam-hint">Barcode in den Rahmen halten</div>
+      </div>
+      <div class="scan-controls">
+        <button class="btn-scan" id="btnScan" onclick="toggleScan()">▶ Kamera starten</button>
+        <span class="cam-status" id="camStatus">Bereit</span>
+      </div>
     </div>
 
-    <div id="preview-box">
-      <img id="previewImg" src="" alt="">
-      <div class="preview-lbl">Eingabebild</div>
-    </div>
-
-    <div id="prog-box">
-      <div class="prog-bar-wrap"><div class="prog-bar-fill" id="progFill"></div></div>
-      <div class="prog-text" id="progText">Initialisiere…</div>
-    </div>
-
-    <details id="rawDetails" style="display:none">
-      <summary>Rohtext (OCR)</summary>
-      <div class="raw-txt" id="rawTxt"></div>
-    </details>
-
-    <div id="match-box"></div>
-
-    <div id="fields-box">
-      <div class="sec-hdr">Extrahierte Felder</div>
-      <div class="fields-grid" id="fieldsGrid"></div>
+    <div id="result-card">
+      <div id="resultBanner" class="result-banner"></div>
+      <div class="result-fields" id="resultFields"></div>
     </div>
 
   </div>
 
-  <div class="right-panel">
-    <div class="sec-hdr">Session-Export</div>
-    <div class="log-toolbar">
-      <button class="btn-sm" onclick="exportCSV()">CSV exportieren</button>
-      <button class="btn-sm" onclick="exportJSON()">JSON exportieren</button>
-      <button class="btn-sm danger" onclick="clearLog()">Log leeren</button>
+  <!-- ── RIGHT ── -->
+  <div class="right">
+    <div class="sec-hdr">Session-Log</div>
+    <div class="toolbar">
+      <button class="btn-sm" onclick="exportCSV()">CSV</button>
+      <button class="btn-sm" onclick="exportJSON()">JSON</button>
+      <button class="btn-sm d" onclick="clearLog()">Leeren</button>
       <span class="log-count" id="logCount">0 Einträge</span>
     </div>
-    <div class="log-wrap">
+    <div class="tbl-wrap">
       <table>
         <thead>
-          <tr>
-            <th>#</th><th>Zeit</th><th>EAN</th><th>Artikel_Nr</th>
-            <th>Preis</th><th>Filiale</th><th>Rückstand</th><th>Art.Status</th><th></th>
-          </tr>
+          <tr><th>#</th><th>Zeit</th><th>GTIN</th><th>Artikel_Nr</th><th>Rückstand</th><th>Status</th><th>Kz</th><th></th></tr>
         </thead>
         <tbody id="logBody">
-          <tr><td colspan="9" class="empty-log">Noch keine Scans in dieser Session</td></tr>
+          <tr><td colspan="8" class="empty-log">Noch keine Scans</td></tr>
         </tbody>
       </table>
     </div>
@@ -203,207 +190,188 @@ summary { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--mu
 </div>
 
 <script>
+// ── STATE ─────────────────────────────────────────────────────────────────────
 let rsData = null;
-let rsDataByNr = null;
 let sessionLog = [];
 let scanCounter = 0;
+let scanning = false;
+let codeReader = null;
+let lastScanned = '';
+let lastScannedTime = 0;
 
-// ── RS.XLSX ──────────────────────────────────────────────────────────────────
-function loadRsFromBuffer(buf, source) {
+// ── RS.XLSX ───────────────────────────────────────────────────────────────────
+function loadRsFromBuffer(buf, kwLabel, metaLabel) {
   const wb = XLSX.read(buf, { type: 'array' });
   const ws = wb.Sheets['Einzeldaten'];
   if (!ws) { alert('Sheet "Einzeldaten" nicht gefunden!'); return; }
   const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
-  rsData = new Map(); rsDataByNr = new Map();
+
+  rsData = new Map();
   rows.forEach(r => {
-    const ean = String(r['GTIN'] || '').trim();
-    const nr  = String(r['Artikel_Nr'] || '').trim();
-    const obj = { ean, nr, kz: String(r['Kz Rückstand value']||'').trim(), status: String(r['Artikelstatus']||'').trim() };
-    if (ean) rsData.set(ean, obj);
-    if (nr)  rsDataByNr.set(nr, obj);
+    const gtin = String(r['GTIN'] || '').trim();
+    if (gtin) rsData.set(gtin, {
+      gtin,
+      artikelNr: String(r['Artikel_Nr'] || '').trim(),
+      kz:        String(r['Kz Rückstand value'] || '').trim(),
+      status:    String(r['Artikelstatus'] || '').trim()
+    });
   });
+
   document.getElementById('rsBox').classList.add('loaded');
   document.getElementById('rsDot').classList.add('ok');
-  const st = document.getElementById('rsStatus');
-  st.className = 'rs-status ok';
-  st.innerHTML = '<span class="dot ok"></span>Datei geladen';
-  document.getElementById('rsMeta').textContent = `${rows.length} Artikel · ${source}`;
+  const row = document.getElementById('rsRow');
+  row.className = 'rs-row ok';
+  row.innerHTML = '<span class="dot ok"></span>Datei geladen';
+  document.getElementById('rsKw').textContent = kwLabel || '';
+  document.getElementById('rsMeta').textContent = `${rows.length} Artikel indiziert · ${metaLabel || ''}`;
 }
 
 document.getElementById('rsFile').addEventListener('change', e => {
   const f = e.target.files[0]; if (!f) return;
   const reader = new FileReader();
-  reader.onload = ev => loadRsFromBuffer(ev.target.result, 'manuell geladen');
+  reader.onload = ev => loadRsFromBuffer(ev.target.result, '', 'manuell geladen');
   reader.readAsArrayBuffer(f);
 });
 
-// Auto-load from same directory (GitHub Pages)
+// Auto-load rs.xlsx from repo root
 (async () => {
   try {
     const res = await fetch('rs.xlsx');
     if (!res.ok) return;
     const buf = await res.arrayBuffer();
-
-    // Read Last-Modified from server response
-    let sourceLabel = 'aus Repository';
+    let kwLabel = '', metaLabel = 'aus Repository';
     const lm = res.headers.get('Last-Modified');
     if (lm) {
       const d = new Date(lm);
-      const day = String(d.getDate()).padStart(2,'0');
-      const mon = String(d.getMonth()+1).padStart(2,'0');
-      const yr  = d.getFullYear();
-      // ISO week number
-      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dd = String(d.getDate()).padStart(2,'0');
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yy = d.getFullYear();
+      const tmp = new Date(Date.UTC(yy, d.getMonth(), d.getDate()));
       tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay()||7));
-      const kw  = Math.ceil((((tmp - new Date(Date.UTC(tmp.getUTCFullYear(),0,1)))/86400000)+1)/7);
-      sourceLabel = `Stand: KW ${kw} · ${day}.${mon}.${yr}`;
+      const kw = Math.ceil((((tmp - new Date(Date.UTC(tmp.getUTCFullYear(),0,1)))/86400000)+1)/7);
+      kwLabel = `KW ${kw} · ${dd}.${mm}.${yy}`;
+      metaLabel = `Stand ${dd}.${mm}.${yy}`;
     }
-    loadRsFromBuffer(buf, sourceLabel);
+    loadRsFromBuffer(buf, kwLabel, metaLabel);
   } catch(e) {}
 })();
 
-// ── IMAGE INPUT ──────────────────────────────────────────────────────────────
-const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('dragover');
-  const f = e.dataTransfer.files[0];
-  if (f && f.type.startsWith('image/')) processImage(f);
-});
-dropZone.addEventListener('click', e => { if (e.target.tagName !== 'BUTTON') document.getElementById('imgFile').click(); });
-document.getElementById('imgFile').addEventListener('change', e => { if (e.target.files[0]) processImage(e.target.files[0]); });
+// ── SCANNER ──────────────────────────────────────────────────────────────────
+async function toggleScan() {
+  if (scanning) { stopScan(); return; }
 
-// ── OCR ──────────────────────────────────────────────────────────────────────
-function processImage(file) {
-  const url = URL.createObjectURL(file);
-  document.getElementById('previewImg').src = url;
-  show('preview-box'); show('prog-box');
-  document.getElementById('rawDetails').style.display = 'none';
-  hide('match-box'); hide('fields-box');
-  document.getElementById('progFill').style.width = '0%';
+  const btn = document.getElementById('btnScan');
+  const status = document.getElementById('camStatus');
+  btn.textContent = '⏹ Stopp';
+  btn.classList.add('stop');
+  status.textContent = 'Kamera wird gestartet…';
+  scanning = true;
 
-  Tesseract.recognize(url, 'deu+eng', {
-    logger: m => {
-      if (m.status === 'recognizing text') {
-        const p = Math.round(m.progress * 100);
-        document.getElementById('progFill').style.width = p + '%';
-        document.getElementById('progText').textContent = `Texterkennung… ${p}%`;
-      } else {
-        document.getElementById('progText').textContent = m.status;
-      }
-    }
-  }).then(({ data: { text, confidence } }) => {
-    hide('prog-box');
-    document.getElementById('rawTxt').textContent = text;
-    document.getElementById('rawDetails').style.display = '';
-    const parsed = parseLabel(text, confidence);
-    renderFields(parsed);
-    const match = doMatch(parsed);
-    renderMatch(match);
-    addToLog(parsed, match);
-  }).catch(err => {
-    document.getElementById('progText').textContent = 'Fehler: ' + err.message;
-  });
-}
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    // Prefer back camera
+    const devices = await ZXing.BrowserMultiFormatReader.listVideoInputDevices();
+    const back = devices.find(d => /back|rear|environment/i.test(d.label)) || devices[devices.length - 1];
+    const deviceId = back ? back.deviceId : undefined;
 
-// ── PARSER ───────────────────────────────────────────────────────────────────
-function parseLabel(text, overallConf) {
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const out = { raw: text, conf: Math.round(overallConf) };
+    await codeReader.decodeFromVideoDevice(deviceId, 'video', (result, err) => {
+      if (!result) return;
+      const raw = result.getText();
 
-  const nameLine = lines.find(l => l.length > 5 && /[a-zA-ZäöüÄÖÜ]/.test(l));
-  if (nameLine) out.name = nameLine;
+      // Debounce: ignore same code within 3 seconds
+      const now = Date.now();
+      if (raw === lastScanned && now - lastScannedTime < 3000) return;
+      lastScanned = raw;
+      lastScannedTime = now;
 
-  const pm = text.match(/([O0-9]{1,3})[.,](\d{2})/);
-  if (pm) out.price = pm[1].replace(/O/g,'0') + ',' + pm[2];
-
-  const eanm = text.replace(/\s/g,'').match(/\b(\d{13})\b/);
-  if (eanm) out.ean = eanm[1];
-
-  const allNums = [...text.replace(/\s/g,'').matchAll(/\d{7,13}/g)].map(m => m[0]);
-  const nonEAN = allNums.filter(n => n !== (out.ean || ''));
-  if (nonEAN.length) out.artikelNr = nonEAN[0];
-
-  const dm = text.match(/(\d{2})[.,](\d{2})[.,](\d{2,4})/);
-  if (dm) out.date = `${dm[1]}.${dm[2]}.${dm[3].length===2?'20'+dm[3]:dm[3]}`;
-
-  const metaLine = lines.find(l => /\d{2}\.\d{2}\.\d{2}/.test(l));
-  if (metaLine) {
-    const parts = metaLine.replace(/\d{2}\.\d{2}\.\d{2,4}/,'').trim().split(/\s+/).filter(Boolean);
-    if (parts[0]) out.filiale   = parts[0];
-    if (parts[1]) out.gang      = parts[1];
-    if (parts[2]) out.fach      = parts[2];
-    if (parts[3]) out.preistyp  = parts[3];
+      // Extract 10-digit Artikel_Nr OR 13-digit GTIN from scanned string
+      const gtin = raw.replace(/\D/g,'');
+      status.textContent = `✓ ${gtin}`;
+      handleScan(gtin);
+    });
+    status.textContent = 'Scanbereit';
+  } catch(e) {
+    status.textContent = 'Kamerafehler: ' + e.message;
+    stopScan();
   }
-  return out;
 }
 
-// ── MATCH ────────────────────────────────────────────────────────────────────
-function doMatch(p) {
-  if (!rsData) return { status: 'nors' };
-  let found = null, matchedBy = null;
-  if (p.ean && rsData.has(p.ean))           { found = rsData.get(p.ean);       matchedBy = 'EAN'; }
-  else if (p.artikelNr && rsDataByNr.has(p.artikelNr)) { found = rsDataByNr.get(p.artikelNr); matchedBy = 'Artikel_Nr'; }
-  if (!found) return { status: 'ok' };
+function stopScan() {
+  if (codeReader) { codeReader.reset(); codeReader = null; }
+  scanning = false;
+  document.getElementById('btnScan').textContent = '▶ Kamera starten';
+  document.getElementById('btnScan').classList.remove('stop');
+  document.getElementById('camStatus').textContent = 'Gestoppt';
+}
+
+// ── MATCH & DISPLAY ──────────────────────────────────────────────────────────
+function handleScan(gtin) {
+  if (!rsData) {
+    showResult('nors', gtin, null);
+    addLog(gtin, { status: 'nors' });
+    return;
+  }
+  const found = rsData.get(gtin) || null;
+  if (!found) {
+    showResult('ok', gtin, null);
+    addLog(gtin, { status: 'ok' });
+    return;
+  }
   const imRS = found.kz.toLowerCase().includes('rückstand') && !found.kz.toLowerCase().includes('wieder');
-  return { status: imRS ? 'hit' : 'avail', matchedBy, row: found };
+  const status = imRS ? 'hit' : 'avail';
+  showResult(status, gtin, found);
+  addLog(gtin, { status, row: found });
 }
 
-// ── RENDER MATCH ─────────────────────────────────────────────────────────────
-const MATCH_STYLES = {
-  nors: { bg:'#1a1200', color: 'var(--warn)',    border:'var(--warn)',    icon:'⚠️', label:'RS.XLSX NICHT GELADEN' },
-  hit:  { bg:'#1a0000', color: 'var(--danger)',  border:'var(--danger)',  icon:'🔴', label:'RÜCKSTAND' },
-  avail:{ bg:'#001220', color: '#4db8ff',        border:'#4db8ff',        icon:'🔵', label:'WIEDER VERFÜGBAR' },
-  ok:   { bg:'#001a0d', color: 'var(--success)', border:'var(--success)', icon:'✅', label:'KEIN RÜCKSTAND' },
+const STYLES = {
+  nors:  { bg:'#1a1200', color:'var(--warn)',    border:'var(--warn)',    icon:'⚠️', label:'RS.XLSX NICHT GELADEN' },
+  hit:   { bg:'#1a0000', color:'var(--danger)',  border:'var(--danger)',  icon:'🔴', label:'RÜCKSTAND' },
+  avail: { bg:'#001220', color:'var(--info)',    border:'var(--info)',    icon:'🔵', label:'WIEDER VERFÜGBAR' },
+  ok:    { bg:'#001a0d', color:'var(--success)', border:'var(--success)', icon:'✅', label:'KEIN RÜCKSTAND' },
 };
 
-function renderMatch(match) {
-  const s = MATCH_STYLES[match.status];
-  let detail = '';
-  if (match.status === 'nors')  detail = 'Bitte erst Referenzdatei laden';
-  else if (match.row) detail = `Match via ${match.matchedBy} · Status: ${match.row.status} · ${match.row.kz}`;
-  else detail = 'Nicht in rs.xlsx enthalten';
+function showResult(status, gtin, row) {
+  const s = STYLES[status];
+  const banner = document.getElementById('resultBanner');
+  const detail = row ? `Artikel_Nr: ${row.artikelNr} · ${row.kz}` : status === 'nors' ? 'Bitte erst rs.xlsx laden' : 'Nicht in rs.xlsx enthalten';
+  banner.style.cssText = `background:${s.bg};color:${s.color};border-bottom:1px solid ${s.border}`;
+  banner.innerHTML = `<span class="result-icon">${s.icon}</span><div>${s.label}<div class="result-sub">${detail}</div></div>`;
 
-  document.getElementById('match-box').innerHTML = `
-    <div class="match-banner" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">
-      <span class="match-icon">${s.icon}</span>
-      <div>${s.label}<div class="match-detail">${detail}</div></div>
-    </div>`;
-  show('match-box');
+  const fields = document.getElementById('resultFields');
+  fields.innerHTML = '';
+  addField(fields, 'GTIN', gtin, 'big');
+  if (row) {
+    addField(fields, 'Artikel_Nr', row.artikelNr, 'mono');
+    addField(fields, 'Artikelstatus', row.status, 'mono');
+    addField(fields, 'Rückstandskz', row.kz, '');
+  }
+
+  document.getElementById('result-card').classList.add('visible');
+
+  // Flash screen feedback
+  flashFeedback(status);
 }
 
-// ── RENDER FIELDS ────────────────────────────────────────────────────────────
-function renderFields(p) {
-  const grid = document.getElementById('fieldsGrid');
-  grid.innerHTML = '';
-  const fields = [
-    ['Produktname', p.name, ''],
-    ['Preis', p.price ? `€ ${p.price}` : null, 'price'],
-    ['EAN (GTIN)', p.ean, 'mono'],
-    ['Artikel_Nr', p.artikelNr, 'mono'],
-    ['Etikettdatum', p.date, ''],
-    ['Filiale', p.filiale, 'mono'],
-    ['Gang / Fach', (p.gang&&p.fach)?`${p.gang} / ${p.fach}`:null, 'mono'],
-    ['Preistyp', p.preistyp?`${p.preistyp}${p.preistyp==='A'?' · Regulär':p.preistyp==='P'?' · Aktion':''}`:null, ''],
-    ['OCR-Konfidenz', p.conf?`${p.conf}%`:null, 'mono'],
-  ];
-  fields.forEach(([lbl, val, cls]) => {
-    if (!val) return;
-    const div = document.createElement('div');
-    div.className = 'field-row' + (cls === 'price' ? ' hl' : '');
-    div.innerHTML = `<span class="field-lbl">${lbl}</span><span class="field-val ${cls}">${val}</span>`;
-    grid.appendChild(div);
-  });
-  show('fields-box');
+function addField(parent, lbl, val, cls) {
+  if (!val) return;
+  const div = document.createElement('div');
+  div.className = 'rf';
+  div.innerHTML = `<span class="rf-lbl">${lbl}</span><span class="rf-val ${cls}">${val}</span>`;
+  parent.appendChild(div);
 }
 
-// ── SESSION LOG ──────────────────────────────────────────────────────────────
-function addToLog(parsed, match) {
+function flashFeedback(status) {
+  const colors = { hit:'rgba(255,68,68,0.15)', avail:'rgba(77,184,255,0.1)', ok:'rgba(0,255,136,0.1)', nors:'rgba(255,204,0,0.1)' };
+  const flash = document.createElement('div');
+  flash.style.cssText = `position:fixed;inset:0;background:${colors[status]||'transparent'};z-index:200;pointer-events:none;animation:fadeflash .4s ease forwards`;
+  document.body.appendChild(flash);
+  setTimeout(() => flash.remove(), 400);
+}
+
+// ── SESSION LOG ───────────────────────────────────────────────────────────────
+function addLog(gtin, match) {
   scanCounter++;
-  sessionLog.unshift({ id: scanCounter, time: new Date().toLocaleTimeString('de-DE'),
-    ean: parsed.ean||'–', artikelNr: parsed.artikelNr||'–',
-    preis: parsed.price?`€${parsed.price}`:'–', filiale: parsed.filiale||'–', match });
+  sessionLog.unshift({ id: scanCounter, time: new Date().toLocaleTimeString('de-DE'), gtin, match });
   renderLog(); updateStats();
 }
 
@@ -411,62 +379,57 @@ function renderLog() {
   document.getElementById('logCount').textContent = `${sessionLog.length} Eintr${sessionLog.length===1?'ag':'äge'}`;
   const tbody = document.getElementById('logBody');
   if (!sessionLog.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-log">Noch keine Scans in dieser Session</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-log">Noch keine Scans</td></tr>';
     return;
   }
-  const tagMap = { hit:'hit', ok:'ok', avail:'avail', nors:'nors' };
-  const lblMap = { hit:'RÜCKSTAND', ok:'OK', avail:'VERFÜGBAR', nors:'KEIN RS' };
+  const lbl = { hit:'RÜCKSTAND', ok:'OK', avail:'VERFÜGBAR', nors:'KEIN RS' };
   tbody.innerHTML = sessionLog.map(e => `<tr>
     <td class="mono-sm">${e.id}</td>
     <td class="mono-sm">${e.time}</td>
-    <td class="mono-sm">${e.ean}</td>
-    <td class="mono-sm">${e.artikelNr}</td>
-    <td class="mono-sm">${e.preis}</td>
-    <td class="mono-sm">${e.filiale}</td>
-    <td><span class="tag ${tagMap[e.match.status]}">${lblMap[e.match.status]}</span></td>
-    <td class="mono-sm">${e.match.row?e.match.row.status:'–'}</td>
+    <td class="mono-sm">${e.gtin}</td>
+    <td class="mono-sm">${e.match.row ? e.match.row.artikelNr : '–'}</td>
+    <td><span class="tag ${e.match.status}">${lbl[e.match.status]}</span></td>
+    <td class="mono-sm">${e.match.row ? e.match.row.status : '–'}</td>
+    <td class="mono-sm" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.match.row ? e.match.row.kz : '–'}</td>
     <td><button class="del-btn" onclick="delEntry(${e.id})">×</button></td>
   </tr>`).join('');
 }
 
 function delEntry(id) { sessionLog = sessionLog.filter(e => e.id !== id); renderLog(); updateStats(); }
-function clearLog() { if (!sessionLog.length||!confirm('Session-Log leeren?')) return; sessionLog=[]; renderLog(); updateStats(); }
-
+function clearLog() { if (!sessionLog.length || !confirm('Log leeren?')) return; sessionLog=[]; renderLog(); updateStats(); }
 function updateStats() {
   document.getElementById('hTotal').textContent = sessionLog.length;
   document.getElementById('hHit').textContent   = sessionLog.filter(e=>e.match.status==='hit').length;
   document.getElementById('hOk').textContent    = sessionLog.filter(e=>e.match.status==='ok'||e.match.status==='avail').length;
 }
 
-// ── EXPORT ───────────────────────────────────────────────────────────────────
+// ── EXPORT ────────────────────────────────────────────────────────────────────
 function exportCSV() {
   if (!sessionLog.length) { toast('Keine Einträge'); return; }
-  const hdr = ['Nr','Zeit','EAN','Artikel_Nr','Preis','Filiale','Rückstand','Art.Status','Kz'];
-  const rows = sessionLog.map(e => [e.id,e.time,e.ean,e.artikelNr,e.preis,e.filiale,
-    {hit:'JA',ok:'NEIN',avail:'WIEDER VERFÜGBAR',nors:'KEIN RS'}[e.match.status],
+  const hdr = ['Nr','Zeit','GTIN','Artikel_Nr','Rückstand','Art.Status','Kz'];
+  const lbl = { hit:'JA', ok:'NEIN', avail:'WIEDER VERFÜGBAR', nors:'KEIN RS' };
+  const rows = sessionLog.map(e => [e.id, e.time, e.gtin,
+    e.match.row?e.match.row.artikelNr:'–', lbl[e.match.status],
     e.match.row?e.match.row.status:'–', e.match.row?e.match.row.kz:'–']);
-  const csv = [hdr,...rows].map(r=>r.map(c=>`"${c}"`).join(';')).join('\n');
-  dl(csv,`scan-${stamp()}.csv`,'text/csv'); toast('CSV exportiert ✓');
+  dl([hdr,...rows].map(r=>r.map(c=>`"${c}"`).join(';')).join('\n'), `rueckstand-${stamp()}.csv`, 'text/csv');
+  toast('CSV exportiert ✓');
 }
-
 function exportJSON() {
   if (!sessionLog.length) { toast('Keine Einträge'); return; }
-  const out = sessionLog.map(e=>({nr:e.id,zeit:e.time,ean:e.ean,artikelNr:e.artikelNr,
-    preis:e.preis,filiale:e.filiale,rueckstand:e.match.status,
-    artikelstatus:e.match.row?e.match.row.status:null,kz:e.match.row?e.match.row.kz:null}));
-  dl(JSON.stringify(out,null,2),`scan-${stamp()}.json`,'application/json'); toast('JSON exportiert ✓');
+  dl(JSON.stringify(sessionLog.map(e=>({nr:e.id,zeit:e.time,gtin:e.gtin,
+    artikelNr:e.match.row?e.match.row.artikelNr:null,
+    rueckstand:e.match.status, status:e.match.row?e.match.row.status:null,
+    kz:e.match.row?e.match.row.kz:null})),null,2), `rueckstand-${stamp()}.json`,'application/json');
+  toast('JSON exportiert ✓');
 }
+function dl(c,f,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));a.download=f;a.click();}
+function stamp(){return new Date().toISOString().slice(0,10);}
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
 
-function dl(content,filename,type) {
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=filename; a.click();
-}
-function stamp() { return new Date().toISOString().slice(0,10); }
-function show(id) { document.getElementById(id).classList.add('visible'); }
-function hide(id) { document.getElementById(id).classList.remove('visible'); }
-function toast(msg) {
-  const t=document.createElement('div'); t.className='toast'; t.textContent=msg;
-  document.body.appendChild(t); setTimeout(()=>t.remove(),2200);
-}
+// CSS for flash animation
+const style = document.createElement('style');
+style.textContent = '@keyframes fadeflash{0%{opacity:1}100%{opacity:0}}';
+document.head.appendChild(style);
 </script>
 </body>
 </html>
