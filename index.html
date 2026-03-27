@@ -2,369 +2,471 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>EAN Scanner</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Preisschild Scanner · Budni Rückstand-Check</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
-  :root {
-    --bg: #f4f1eb;
-    --surface: #ffffff;
-    --border: #ddd8ce;
-    --accent: #1a1a2e;
-    --accent2: #c8392b;
-    --accent-light: rgba(26,26,46,0.07);
-    --text: #1a1a2e;
-    --text-muted: #8a8478;
-    --ok: #2a7d4f;
-    --ok-bg: #e8f5ee;
-    --warn: #c8392b;
-    --warn-bg: #fdecea;
-    --font: 'Georgia', 'Times New Roman', serif;
-    --font-mono: 'Courier New', monospace;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100dvh; display: flex; flex-direction: column; }
+:root {
+  --bg: #0e0e0e;
+  --surface: #1a1a1a;
+  --surface2: #222;
+  --border: #2e2e2e;
+  --accent: #c8ff00;
+  --accent2: #ff6b35;
+  --text: #f0f0f0;
+  --muted: #666;
+  --success: #00ff88;
+  --warn: #ffcc00;
+  --danger: #ff4444;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
 
-  header { background: var(--accent); color: #f4f1eb; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-  .header-left h1 { font-size: 15px; font-weight: normal; letter-spacing: 0.18em; text-transform: uppercase; }
-  .header-left small { font-size: 10px; opacity: 0.45; letter-spacing: 0.12em; font-family: var(--font-mono); }
-  #db-badge { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 2px; padding: 4px 10px; color: rgba(244,241,235,0.7); transition: all 0.3s; }
-  #db-badge.loaded { background: rgba(42,125,79,0.3); border-color: rgba(42,125,79,0.6); color: #7de0a8; }
-  #db-badge.error  { background: rgba(200,57,43,0.2); border-color: rgba(200,57,43,0.4); color: #f08070; }
+header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 28px; border-bottom: 1px solid var(--border);
+  background: var(--surface); position: sticky; top: 0; z-index: 100;
+}
+.logo { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: 0.1em; }
+.logo span { color: var(--muted); }
+.header-stats { margin-left: auto; display: flex; gap: 20px; }
+.hstat { font-family: 'Space Mono', monospace; font-size: 11px; text-align: right; }
+.hstat .val { color: var(--accent); font-size: 18px; display: block; line-height: 1; }
+.hstat .lbl { color: var(--muted); font-size: 9px; letter-spacing: 0.06em; }
 
-  #scanner-wrap { position: relative; width: 100%; background: #000; overflow: hidden; flex-shrink: 0; }
-  #interactive { width: 100%; height: 100%; position: absolute; inset: 0; }
-  #interactive video, #interactive canvas { width: 100% !important; height: 100% !important; object-fit: cover; display: block; }
-  #interactive canvas.drawingBuffer { display: none; }
-  .scan-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-  .scan-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 78%; height: 80px; }
-  .scan-frame::before, .scan-frame::after, .scan-frame .c3, .scan-frame .c4 { content: ''; position: absolute; width: 22px; height: 22px; border-color: #f4f1eb; border-style: solid; }
-  .scan-frame::before { top:0; left:0; border-width: 2px 0 0 2px; }
-  .scan-frame::after  { top:0; right:0; border-width: 2px 2px 0 0; }
-  .scan-frame .c3 { bottom:0; left:0; border-width: 0 0 2px 2px; }
-  .scan-frame .c4 { bottom:0; right:0; border-width: 0 2px 2px 0; }
-  .scan-line { position: absolute; top: 50%; left: 50%; transform: translate(-50%, calc(-50% - 28px)); width: 78%; height: 1px; background: linear-gradient(90deg, transparent, var(--accent2), transparent); animation: scanMove 1.8s ease-in-out infinite; }
-  @keyframes scanMove { 0%,100% { transform: translate(-50%, calc(-50% - 28px)); opacity: 0.5; } 50% { transform: translate(-50%, calc(-50% + 28px)); opacity: 1; } }
-  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 20; transition: opacity 0.04s; }
-  .flash.active { opacity: 0.35; }
+.app { display: grid; grid-template-columns: 400px 1fr; min-height: calc(100vh - 57px); }
+@media (max-width: 800px) { .app { grid-template-columns: 1fr; } }
 
-  #status-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 7px 16px; display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; min-height: 34px; }
-  #status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; transition: background 0.3s; }
-  #status-dot.active { background: var(--ok); animation: blink 1.4s infinite; }
-  #status-dot.error  { background: var(--warn); }
-  #status-dot.found  { background: var(--ok); animation: none; }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
-  #status-text { color: var(--text-muted); flex: 1; }
+.left-panel { border-right: 1px solid var(--border); padding: 24px; display: flex; flex-direction: column; gap: 20px; }
 
-  #controls { display: flex; gap: 8px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
-  button { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; padding: 8px 12px; border: 1px solid var(--border); border-radius: 2px; cursor: pointer; background: transparent; color: var(--text-muted); transition: all 0.15s; flex: 1; }
-  button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #f4f1eb; }
-  button.primary:hover { background: #2d2d4e; }
-  button.danger:hover { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
-  button:disabled { opacity: 0.3; pointer-events: none; }
+.rs-box { border: 1px solid var(--border); border-radius: 6px; padding: 16px; background: var(--surface); }
+.rs-box.loaded { border-color: var(--success); background: #001a0d; }
+.rs-title { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+.rs-status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.rs-status.ok { color: var(--success); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.dot.ok { background: var(--success); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.btn-load { margin-top: 10px; background: transparent; border: 1px dashed var(--border); color: var(--muted); font-family: 'Space Mono', monospace; font-size: 11px; padding: 8px 14px; border-radius: 4px; cursor: pointer; width: 100%; transition: all 0.15s; text-align: center; }
+.btn-load:hover { border-color: var(--accent); color: var(--accent); }
+.rs-meta { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--success); margin-top: 6px; }
 
-  #last-scan { margin: 12px 16px 0; border-radius: 3px; padding: 10px 14px; display: none; align-items: center; gap: 12px; border: 1px solid; animation: popIn 0.2s ease; }
-  @keyframes popIn { from{transform:scale(0.97);opacity:0} to{transform:scale(1);opacity:1} }
-  #last-scan.known   { background: var(--ok-bg);  border-color: #a8d8be; }
-  #last-scan.unknown { background: var(--warn-bg); border-color: #f0b8b2; }
-  .ls-icon { font-size: 22px; flex-shrink: 0; }
-  .ls-code { font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.1em; }
-  .ls-name { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-  .ls-tag  { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; margin-left: auto; flex-shrink: 0; }
-  .known .ls-tag  { color: var(--ok); }
-  .unknown .ls-tag { color: var(--warn); }
+.drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--surface); position: relative; overflow: hidden; }
+.drop-zone::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(200,255,0,0.04) 0%, transparent 70%); pointer-events: none; }
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: #1e2200; }
+.drop-icon { font-size: 36px; margin-bottom: 10px; display: block; }
+.drop-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+.drop-sub { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
+.btn-pick { margin-top: 14px; background: var(--accent); color: #000; border: none; padding: 10px 22px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; cursor: pointer; border-radius: 4px; transition: all 0.15s; display: inline-block; }
+.btn-pick:hover { background: #d4ff1a; }
+input[type="file"] { display: none; }
 
-  #results-section { flex: 1; overflow-y: auto; padding: 12px 16px 20px; }
-  .section-header { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-  #scan-count { color: var(--accent); }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
-  thead th { text-align: left; font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); padding: 0 8px 6px; border-bottom: 1px solid var(--border); font-weight: normal; }
-  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; animation: rowIn 0.2s ease; }
-  @keyframes rowIn { from{opacity:0;transform:translateX(-4px)} to{opacity:1;transform:none} }
-  tbody tr:hover { background: var(--accent-light); }
-  tbody tr.unknown-row td { color: var(--warn); }
-  tbody td { padding: 8px; vertical-align: middle; }
-  td.td-num  { color: var(--text-muted); font-size: 10px; width: 28px; }
-  td.td-ean  { letter-spacing: 0.08em; }
-  td.td-name { color: var(--text-muted); }
-  td.td-time { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
+#preview-box { display: none; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface); }
+#preview-box.visible { display: block; }
+#previewImg { width: 100%; display: block; max-height: 200px; object-fit: contain; padding: 10px; background: #111; }
+.preview-lbl { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); padding: 7px 12px; border-top: 1px solid var(--border); letter-spacing: 0.08em; text-transform: uppercase; }
 
-  .empty-state { text-align: center; padding: 36px 20px; color: var(--text-muted); }
-  .empty-state .em-icon { font-size: 36px; opacity: 0.25; margin-bottom: 10px; }
-  .empty-state p { font-size: 12px; line-height: 1.9; letter-spacing: 0.05em; font-family: var(--font-mono); }
+#prog-box { display: none; }
+#prog-box.visible { display: block; }
+.prog-bar-wrap { background: var(--surface2); border-radius: 4px; height: 4px; overflow: hidden; margin-bottom: 8px; }
+.prog-bar-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; width: 0%; }
+.prog-text { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
 
-  #export-bar { background: var(--surface); border-top: 1px solid var(--border); padding: 10px 16px; display: none; gap: 8px; position: sticky; bottom: 0; }
+#match-box { display: none; border-radius: 6px; overflow: hidden; }
+#match-box.visible { display: block; }
+.match-banner { padding: 14px 16px; display: flex; align-items: center; gap: 10px; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; border-radius: 6px; }
+.match-icon { font-size: 20px; }
+.match-detail { font-size: 11px; font-weight: 400; margin-top: 4px; opacity: 0.7; }
 
-  #start-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; text-align: center; }
-  .start-barcode { font-size: 42px; letter-spacing: -2px; opacity: 0.15; margin-bottom: 28px; font-family: var(--font-mono); line-height: 1; }
-  #start-screen h2 { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: normal; margin-bottom: 10px; }
-  #start-screen p { font-size: 12px; color: var(--text-muted); line-height: 1.9; max-width: 300px; margin-bottom: 32px; font-family: var(--font-mono); letter-spacing: 0.04em; }
-  #start-btn { font-size: 11px; padding: 13px 40px; flex: unset; }
-  .db-status-msg { margin-top: 16px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-muted); }
-  .db-status-msg.ok  { color: var(--ok); }
-  .db-status-msg.err { color: var(--warn); }
+#fields-box { display: none; }
+#fields-box.visible { display: block; }
+.sec-hdr { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.sec-hdr::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.fields-grid { display: flex; flex-direction: column; gap: 6px; }
+.field-row { display: flex; align-items: baseline; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 10px 12px; }
+.field-row.hl { border-color: var(--accent); background: #1a2200; }
+.field-lbl { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; min-width: 110px; flex-shrink: 0; }
+.field-val { font-size: 14px; font-weight: 600; }
+.field-val.mono { font-family: 'Space Mono', monospace; font-size: 12px; }
+.field-val.price { font-family: 'Space Mono', monospace; font-size: 20px; color: var(--accent); }
 
-  #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(16px); background: var(--accent); color: #f4f1eb; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; padding: 8px 20px; border-radius: 2px; opacity: 0; transition: all 0.22s; pointer-events: none; white-space: nowrap; z-index: 200; }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.right-panel { padding: 24px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
+.log-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.btn-sm { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: 7px 14px; font-family: 'Space Mono', monospace; font-size: 11px; cursor: pointer; border-radius: 4px; transition: all 0.15s; }
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+.btn-sm.danger:hover { border-color: var(--danger); color: var(--danger); }
+.log-count { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); margin-left: auto; }
+
+.log-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { font-family: 'Space Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); background: var(--surface2); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid #1e1e1e; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #1e1e1e; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 3px; font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; }
+.tag.hit  { background: #1a0000; color: var(--danger); border: 1px solid var(--danger); }
+.tag.ok   { background: #001a0d; color: var(--success); border: 1px solid var(--success); }
+.tag.avail{ background: #001220; color: #4db8ff; border: 1px solid #4db8ff; }
+.tag.nors { background: #1a1200; color: var(--warn); border: 1px solid var(--warn); }
+.mono-sm { font-family: 'Space Mono', monospace; font-size: 11px; }
+.del-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 0 4px; }
+.del-btn:hover { color: var(--danger); }
+.empty-log { text-align: center; padding: 60px 20px; color: var(--muted); font-family: 'Space Mono', monospace; font-size: 12px; }
+
+details { background: var(--surface); border: 1px solid var(--border); border-radius: 5px; }
+summary { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); padding: 8px 12px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; }
+.raw-txt { padding: 10px 12px; font-family: 'Space Mono', monospace; font-size: 11px; color: #888; white-space: pre-wrap; word-break: break-all; max-height: 100px; overflow-y: auto; border-top: 1px solid var(--border); }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #000; font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; padding: 10px 20px; border-radius: 4px; z-index: 999; pointer-events: none; }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="header-left">
-    <h1>EAN Scanner</h1>
-    <small>EAN-8 · EAN-13 · Rückstandsabgleich</small>
+  <div class="logo">Preisschild <span>/</span> Scanner <span>·</span> Rückstand-Check</div>
+  <div class="header-stats">
+    <div class="hstat"><span class="val" id="hTotal">0</span><span class="lbl">GESCANNT</span></div>
+    <div class="hstat"><span class="val" id="hHit" style="color:var(--danger)">0</span><span class="lbl">RÜCKSTAND</span></div>
+    <div class="hstat"><span class="val" id="hOk" style="color:var(--success)">0</span><span class="lbl">OK / VERF.</span></div>
   </div>
-  <div id="db-badge">DB: —</div>
 </header>
 
-<div id="start-screen">
-  <div class="start-barcode">▮▯▮▮▯▮▯▮▮▯▮▯▮▮▯▮</div>
-  <h2>Barcode Scanner</h2>
-  <p>Scannt EAN-8 / EAN-13 Codes und gleicht sie gegen die Rückstandsliste ab. Export als Excel.</p>
-  <button id="start-btn" class="primary" onclick="init()">KAMERA STARTEN</button>
-  <div id="db-status-msg" class="db-status-msg">Lade Artikeldaten…</div>
+<div class="app">
+  <div class="left-panel">
+
+    <!-- RS LOAD -->
+    <div class="rs-box" id="rsBox">
+      <div class="rs-title">Referenzdatei (rs.xlsx)</div>
+      <div class="rs-status" id="rsStatus"><span class="dot" id="rsDot"></span>Nicht geladen</div>
+      <button class="btn-load" onclick="document.getElementById('rsFile').click()">rs.xlsx manuell laden</button>
+      <input type="file" id="rsFile" accept=".xlsx,.xls">
+      <div class="rs-meta" id="rsMeta"></div>
+    </div>
+
+    <!-- SCANNER -->
+    <div class="drop-zone" id="dropZone">
+      <span class="drop-icon">📷</span>
+      <div class="drop-title">Preisschild scannen</div>
+      <div class="drop-sub">Foto aufnehmen oder hochladen</div><br>
+      <button class="btn-pick" onclick="document.getElementById('imgFile').click()">Bild auswählen</button>
+      <input type="file" id="imgFile" accept="image/*" capture="environment">
+    </div>
+
+    <div id="preview-box">
+      <img id="previewImg" src="" alt="">
+      <div class="preview-lbl">Eingabebild</div>
+    </div>
+
+    <div id="prog-box">
+      <div class="prog-bar-wrap"><div class="prog-bar-fill" id="progFill"></div></div>
+      <div class="prog-text" id="progText">Initialisiere…</div>
+    </div>
+
+    <details id="rawDetails" style="display:none">
+      <summary>Rohtext (OCR)</summary>
+      <div class="raw-txt" id="rawTxt"></div>
+    </details>
+
+    <div id="match-box"></div>
+
+    <div id="fields-box">
+      <div class="sec-hdr">Extrahierte Felder</div>
+      <div class="fields-grid" id="fieldsGrid"></div>
+    </div>
+
+  </div>
+
+  <div class="right-panel">
+    <div class="sec-hdr">Session-Export</div>
+    <div class="log-toolbar">
+      <button class="btn-sm" onclick="exportCSV()">CSV exportieren</button>
+      <button class="btn-sm" onclick="exportJSON()">JSON exportieren</button>
+      <button class="btn-sm danger" onclick="clearLog()">Log leeren</button>
+      <span class="log-count" id="logCount">0 Einträge</span>
+    </div>
+    <div class="log-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Zeit</th><th>EAN</th><th>Artikel_Nr</th>
+            <th>Preis</th><th>Filiale</th><th>Rückstand</th><th>Art.Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="logBody">
+          <tr><td colspan="9" class="empty-log">Noch keine Scans in dieser Session</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
-
-<div id="scanner-ui" style="display:none; flex-direction:column; flex:1;">
-  <div id="scanner-wrap">
-    <div id="interactive" class="viewport"></div>
-    <div class="scan-overlay">
-      <div class="scan-frame"><span class="c3"></span><span class="c4"></span></div>
-      <div class="scan-line" id="scan-line"></div>
-    </div>
-    <div class="flash" id="flash"></div>
-  </div>
-
-  <div id="status-bar">
-    <div id="status-dot"></div>
-    <span id="status-text">Initialisiere…</span>
-  </div>
-
-  <div id="controls">
-    <button id="pause-btn" onclick="togglePause()" disabled>PAUSE</button>
-    <button class="danger" onclick="clearResults()">LÖSCHEN</button>
-    <button onclick="stopScanner()">STOP</button>
-  </div>
-
-  <div id="last-scan"></div>
-
-  <div id="results-section">
-    <div class="section-header">
-      <span>SCAN-LISTE</span>
-      <span id="scan-count">0 Artikel</span>
-    </div>
-    <div id="results-body">
-      <div class="empty-state">
-        <div class="em-icon">▮▮▮▮▮▮▮▮▮▮▮</div>
-        <p>Noch keine Scans.<br>Barcode in den Rahmen halten.</p>
-      </div>
-    </div>
-  </div>
-
-  <div id="export-bar">
-    <button class="primary" onclick="exportExcel()" style="flex:2">EXCEL EXPORTIEREN</button>
-    <button onclick="clearResults()" class="danger">LISTE LEEREN</button>
-  </div>
-</div>
-
-<div id="toast"></div>
 
 <script>
-let artikelDB = {};
-let scans = [];
-let scanning = false;
-let paused = false;
-let lastCode = '';
-let lastCodeTime = 0;
-const DEBOUNCE = 1600;
+let rsData = null;
+let rsDataByNr = null;
+let sessionLog = [];
+let scanCounter = 0;
 
-async function loadArtikelDB() {
-  const msgEl = document.getElementById('db-status-msg');
-  const badge = document.getElementById('db-badge');
-  try {
-    const res = await fetch('./rs.xlsx');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const buf = await res.arrayBuffer();
-    const wb  = XLSX.read(buf, { type: 'array' });
-    const ws  = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-    let count = 0;
-    for (const row of rows) {
-      const ean = String(row[0] ?? '').trim().replace(/\D/g, '');
-      if (!ean) continue;
-      artikelDB[ean] = true;
-      count++;
-    }
-    badge.textContent = 'DB: ' + count + ' Artikel';
-    badge.className = 'loaded';
-    msgEl.textContent = '✓ ' + count + ' Artikel geladen';
-    msgEl.className = 'db-status-msg ok';
-  } catch(e) {
-    badge.textContent = 'DB: Fehler';
-    badge.className = 'error';
-    msgEl.textContent = '⚠ rs.xlsx nicht gefunden — alle Scans als "kein Rückstand"';
-    msgEl.className = 'db-status-msg err';
-  }
-}
-
-async function init() {
-  document.getElementById('start-screen').style.display = 'none';
-  document.getElementById('scanner-ui').style.display = 'flex';
-  document.getElementById('scanner-wrap').style.height = Math.round(window.innerWidth * 0.62) + 'px';
-  setStatus('Initialisiere Kamera…', '');
-
-  Quagga.init({
-    inputStream: {
-      name: 'Live', type: 'LiveStream',
-      target: document.querySelector('#interactive'),
-      constraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      area: { top: '20%', right: '5%', left: '5%', bottom: '20%' },
-    },
-    decoder: {
-      readers: ['ean_reader', 'ean_8_reader'],
-      multiple: false,
-      debug: { showCanvas:false, showPatches:false, showFoundPatches:false, showSkeleton:false, showLabels:false, showPatchLabels:false }
-    },
-    locate: false,
-    numOfWorkers: navigator.hardwareConcurrency >= 4 ? 4 : 2,
-    frequency: 20,
-  }, err => {
-    if (err) { setStatus('Kamera-Fehler: ' + err.message, 'error'); return; }
-    Quagga.start();
-    scanning = true;
-    document.getElementById('pause-btn').disabled = false;
-    setStatus('Scannt — EAN-Code in Rahmen halten', 'active');
+// ── RS.XLSX ──────────────────────────────────────────────────────────────────
+function loadRsFromBuffer(buf, source) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets['Einzeldaten'];
+  if (!ws) { alert('Sheet "Einzeldaten" nicht gefunden!'); return; }
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  rsData = new Map(); rsDataByNr = new Map();
+  rows.forEach(r => {
+    const ean = String(r['GTIN'] || '').trim();
+    const nr  = String(r['Artikel_Nr'] || '').trim();
+    const obj = { ean, nr, kz: String(r['Kz Rückstand value']||'').trim(), status: String(r['Artikelstatus']||'').trim() };
+    if (ean) rsData.set(ean, obj);
+    if (nr)  rsDataByNr.set(nr, obj);
   });
-
-  Quagga.onDetected(onDetected);
+  document.getElementById('rsBox').classList.add('loaded');
+  document.getElementById('rsDot').classList.add('ok');
+  const st = document.getElementById('rsStatus');
+  st.className = 'rs-status ok';
+  st.innerHTML = '<span class="dot ok"></span>Datei geladen';
+  document.getElementById('rsMeta').textContent = `${rows.length} Artikel · ${source}`;
 }
 
-function onDetected(result) {
-  if (paused) return;
-  const code = result.codeResult.code;
-  const now  = Date.now();
-  if (code === lastCode && (now - lastCodeTime) < DEBOUNCE) return;
-  if (!validateEAN(code)) return;
-  if (scans.some(s => s.ean === code)) return;
-  lastCode = code;
-  lastCodeTime = now;
+document.getElementById('rsFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => loadRsFromBuffer(ev.target.result, 'manuell geladen');
+  reader.readAsArrayBuffer(f);
+});
 
-  const flash = document.getElementById('flash');
-  flash.classList.add('active');
-  setTimeout(() => flash.classList.remove('active'), 100);
-  if (navigator.vibrate) navigator.vibrate(55);
+// Auto-load from same directory (GitHub Pages)
+(async () => {
+  try {
+    const res = await fetch('rs.xlsx');
+    if (!res.ok) return;
+    const buf = await res.arrayBuffer();
 
-  const known = artikelDB[code] === true;
-  const time  = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-  scans.unshift({ ean: code, known, time });
+    // Read Last-Modified from server response
+    let sourceLabel = 'aus Repository';
+    const lm = res.headers.get('Last-Modified');
+    if (lm) {
+      const d = new Date(lm);
+      const day = String(d.getDate()).padStart(2,'0');
+      const mon = String(d.getMonth()+1).padStart(2,'0');
+      const yr  = d.getFullYear();
+      // ISO week number
+      const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay()||7));
+      const kw  = Math.ceil((((tmp - new Date(Date.UTC(tmp.getUTCFullYear(),0,1)))/86400000)+1)/7);
+      sourceLabel = `Stand: KW ${kw} · ${day}.${mon}.${yr}`;
+    }
+    loadRsFromBuffer(buf, sourceLabel);
+  } catch(e) {}
+})();
 
-  showLastScan(code, known);
-  renderTable();
-  updateExportBar();
-  setStatus((known ? '✓ ' : '⚠ ') + code + (known ? ' — Rückstand' : ' — kein Rückstand'), 'found');
-  setTimeout(() => { if (scanning && !paused) setStatus('Scannt — EAN-Code in Rahmen halten', 'active'); }, 2200);
+// ── IMAGE INPUT ──────────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) processImage(f);
+});
+dropZone.addEventListener('click', e => { if (e.target.tagName !== 'BUTTON') document.getElementById('imgFile').click(); });
+document.getElementById('imgFile').addEventListener('change', e => { if (e.target.files[0]) processImage(e.target.files[0]); });
+
+// ── OCR ──────────────────────────────────────────────────────────────────────
+function processImage(file) {
+  const url = URL.createObjectURL(file);
+  document.getElementById('previewImg').src = url;
+  show('preview-box'); show('prog-box');
+  document.getElementById('rawDetails').style.display = 'none';
+  hide('match-box'); hide('fields-box');
+  document.getElementById('progFill').style.width = '0%';
+
+  Tesseract.recognize(url, 'deu+eng', {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        const p = Math.round(m.progress * 100);
+        document.getElementById('progFill').style.width = p + '%';
+        document.getElementById('progText').textContent = `Texterkennung… ${p}%`;
+      } else {
+        document.getElementById('progText').textContent = m.status;
+      }
+    }
+  }).then(({ data: { text, confidence } }) => {
+    hide('prog-box');
+    document.getElementById('rawTxt').textContent = text;
+    document.getElementById('rawDetails').style.display = '';
+    const parsed = parseLabel(text, confidence);
+    renderFields(parsed);
+    const match = doMatch(parsed);
+    renderMatch(match);
+    addToLog(parsed, match);
+  }).catch(err => {
+    document.getElementById('progText').textContent = 'Fehler: ' + err.message;
+  });
 }
 
-function validateEAN(code) {
-  if (!/^\d{8}$|^\d{13}$/.test(code)) return false;
-  const digits = code.split('').map(Number);
-  const check  = digits.pop();
-  const len    = digits.length + 1;
-  const sum    = digits.reduce((acc, d, i) =>
-    acc + (len === 13 ? (i % 2 === 0 ? d : d * 3) : (i % 2 === 0 ? d * 3 : d)), 0);
-  return (10 - (sum % 10)) % 10 === check;
+// ── PARSER ───────────────────────────────────────────────────────────────────
+function parseLabel(text, overallConf) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const out = { raw: text, conf: Math.round(overallConf) };
+
+  const nameLine = lines.find(l => l.length > 5 && /[a-zA-ZäöüÄÖÜ]/.test(l));
+  if (nameLine) out.name = nameLine;
+
+  const pm = text.match(/([O0-9]{1,3})[.,](\d{2})/);
+  if (pm) out.price = pm[1].replace(/O/g,'0') + ',' + pm[2];
+
+  const eanm = text.replace(/\s/g,'').match(/\b(\d{13})\b/);
+  if (eanm) out.ean = eanm[1];
+
+  const allNums = [...text.replace(/\s/g,'').matchAll(/\d{7,13}/g)].map(m => m[0]);
+  const nonEAN = allNums.filter(n => n !== (out.ean || ''));
+  if (nonEAN.length) out.artikelNr = nonEAN[0];
+
+  const dm = text.match(/(\d{2})[.,](\d{2})[.,](\d{2,4})/);
+  if (dm) out.date = `${dm[1]}.${dm[2]}.${dm[3].length===2?'20'+dm[3]:dm[3]}`;
+
+  const metaLine = lines.find(l => /\d{2}\.\d{2}\.\d{2}/.test(l));
+  if (metaLine) {
+    const parts = metaLine.replace(/\d{2}\.\d{2}\.\d{2,4}/,'').trim().split(/\s+/).filter(Boolean);
+    if (parts[0]) out.filiale   = parts[0];
+    if (parts[1]) out.gang      = parts[1];
+    if (parts[2]) out.fach      = parts[2];
+    if (parts[3]) out.preistyp  = parts[3];
+  }
+  return out;
 }
 
-function showLastScan(code, known) {
-  const el = document.getElementById('last-scan');
-  el.className = known ? 'known' : 'unknown';
-  el.style.display = 'flex';
-  el.innerHTML = `
-    <span class="ls-icon">${known ? '✓' : '⚠'}</span>
-    <div>
-      <div class="ls-code">${code}</div>
-      <div class="ls-name">${known ? 'In Rückstandsliste' : 'Nicht in Rückstandsliste'}</div>
-    </div>
-    <span class="ls-tag">${known ? 'RÜCKSTAND' : 'KEIN RÜCKSTAND'}</span>
-  `;
+// ── MATCH ────────────────────────────────────────────────────────────────────
+function doMatch(p) {
+  if (!rsData) return { status: 'nors' };
+  let found = null, matchedBy = null;
+  if (p.ean && rsData.has(p.ean))           { found = rsData.get(p.ean);       matchedBy = 'EAN'; }
+  else if (p.artikelNr && rsDataByNr.has(p.artikelNr)) { found = rsDataByNr.get(p.artikelNr); matchedBy = 'Artikel_Nr'; }
+  if (!found) return { status: 'ok' };
+  const imRS = found.kz.toLowerCase().includes('rückstand') && !found.kz.toLowerCase().includes('wieder');
+  return { status: imRS ? 'hit' : 'avail', matchedBy, row: found };
 }
 
-function renderTable() {
-  const container = document.getElementById('results-body');
-  if (scans.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="em-icon">▮▮▮▮▮▮▮▮▮▮▮</div><p>Noch keine Scans.<br>EAN-Code in den Rahmen halten.</p></div>`;
-    document.getElementById('scan-count').textContent = '0 Artikel';
+// ── RENDER MATCH ─────────────────────────────────────────────────────────────
+const MATCH_STYLES = {
+  nors: { bg:'#1a1200', color: 'var(--warn)',    border:'var(--warn)',    icon:'⚠️', label:'RS.XLSX NICHT GELADEN' },
+  hit:  { bg:'#1a0000', color: 'var(--danger)',  border:'var(--danger)',  icon:'🔴', label:'RÜCKSTAND' },
+  avail:{ bg:'#001220', color: '#4db8ff',        border:'#4db8ff',        icon:'🔵', label:'WIEDER VERFÜGBAR' },
+  ok:   { bg:'#001a0d', color: 'var(--success)', border:'var(--success)', icon:'✅', label:'KEIN RÜCKSTAND' },
+};
+
+function renderMatch(match) {
+  const s = MATCH_STYLES[match.status];
+  let detail = '';
+  if (match.status === 'nors')  detail = 'Bitte erst Referenzdatei laden';
+  else if (match.row) detail = `Match via ${match.matchedBy} · Status: ${match.row.status} · ${match.row.kz}`;
+  else detail = 'Nicht in rs.xlsx enthalten';
+
+  document.getElementById('match-box').innerHTML = `
+    <div class="match-banner" style="background:${s.bg};color:${s.color};border:1px solid ${s.border}">
+      <span class="match-icon">${s.icon}</span>
+      <div>${s.label}<div class="match-detail">${detail}</div></div>
+    </div>`;
+  show('match-box');
+}
+
+// ── RENDER FIELDS ────────────────────────────────────────────────────────────
+function renderFields(p) {
+  const grid = document.getElementById('fieldsGrid');
+  grid.innerHTML = '';
+  const fields = [
+    ['Produktname', p.name, ''],
+    ['Preis', p.price ? `€ ${p.price}` : null, 'price'],
+    ['EAN (GTIN)', p.ean, 'mono'],
+    ['Artikel_Nr', p.artikelNr, 'mono'],
+    ['Etikettdatum', p.date, ''],
+    ['Filiale', p.filiale, 'mono'],
+    ['Gang / Fach', (p.gang&&p.fach)?`${p.gang} / ${p.fach}`:null, 'mono'],
+    ['Preistyp', p.preistyp?`${p.preistyp}${p.preistyp==='A'?' · Regulär':p.preistyp==='P'?' · Aktion':''}`:null, ''],
+    ['OCR-Konfidenz', p.conf?`${p.conf}%`:null, 'mono'],
+  ];
+  fields.forEach(([lbl, val, cls]) => {
+    if (!val) return;
+    const div = document.createElement('div');
+    div.className = 'field-row' + (cls === 'price' ? ' hl' : '');
+    div.innerHTML = `<span class="field-lbl">${lbl}</span><span class="field-val ${cls}">${val}</span>`;
+    grid.appendChild(div);
+  });
+  show('fields-box');
+}
+
+// ── SESSION LOG ──────────────────────────────────────────────────────────────
+function addToLog(parsed, match) {
+  scanCounter++;
+  sessionLog.unshift({ id: scanCounter, time: new Date().toLocaleTimeString('de-DE'),
+    ean: parsed.ean||'–', artikelNr: parsed.artikelNr||'–',
+    preis: parsed.price?`€${parsed.price}`:'–', filiale: parsed.filiale||'–', match });
+  renderLog(); updateStats();
+}
+
+function renderLog() {
+  document.getElementById('logCount').textContent = `${sessionLog.length} Eintr${sessionLog.length===1?'ag':'äge'}`;
+  const tbody = document.getElementById('logBody');
+  if (!sessionLog.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-log">Noch keine Scans in dieser Session</td></tr>';
     return;
   }
-  document.getElementById('scan-count').textContent = scans.length + ' Artikel';
-  let html = `<table><thead><tr><th>#</th><th>EAN</th><th>Status</th><th>Zeit</th></tr></thead><tbody>`;
-  scans.forEach((s, i) => {
-    html += `<tr class="${s.known ? '' : 'unknown-row'}">
-      <td class="td-num">${scans.length - i}</td>
-      <td class="td-ean">${s.ean}</td>
-      <td class="td-name">${s.known ? 'Rückstand' : 'kein Rückstand'}</td>
-      <td class="td-time">${s.time}</td>
-    </tr>`;
-  });
-  html += '</tbody></table>';
-  container.innerHTML = html;
+  const tagMap = { hit:'hit', ok:'ok', avail:'avail', nors:'nors' };
+  const lblMap = { hit:'RÜCKSTAND', ok:'OK', avail:'VERFÜGBAR', nors:'KEIN RS' };
+  tbody.innerHTML = sessionLog.map(e => `<tr>
+    <td class="mono-sm">${e.id}</td>
+    <td class="mono-sm">${e.time}</td>
+    <td class="mono-sm">${e.ean}</td>
+    <td class="mono-sm">${e.artikelNr}</td>
+    <td class="mono-sm">${e.preis}</td>
+    <td class="mono-sm">${e.filiale}</td>
+    <td><span class="tag ${tagMap[e.match.status]}">${lblMap[e.match.status]}</span></td>
+    <td class="mono-sm">${e.match.row?e.match.row.status:'–'}</td>
+    <td><button class="del-btn" onclick="delEntry(${e.id})">×</button></td>
+  </tr>`).join('');
 }
 
-function exportExcel() {
-  if (scans.length === 0) { showToast('Keine Scans vorhanden'); return; }
-  const wsData = [['EAN', 'Status', 'Scanzeit']];
-  scans.forEach(s => wsData.push([s.ean, s.known ? 'Rückstand' : 'kein Rückstand', s.time]));
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{ wch: 16 }, { wch: 16 }, { wch: 12 }];
-  XLSX.utils.book_append_sheet(wb, ws, 'Scans');
-  XLSX.writeFile(wb, `EAN_Scans_${new Date().toISOString().slice(0,10)}.xlsx`);
-  showToast('Excel gespeichert ✓');
+function delEntry(id) { sessionLog = sessionLog.filter(e => e.id !== id); renderLog(); updateStats(); }
+function clearLog() { if (!sessionLog.length||!confirm('Session-Log leeren?')) return; sessionLog=[]; renderLog(); updateStats(); }
+
+function updateStats() {
+  document.getElementById('hTotal').textContent = sessionLog.length;
+  document.getElementById('hHit').textContent   = sessionLog.filter(e=>e.match.status==='hit').length;
+  document.getElementById('hOk').textContent    = sessionLog.filter(e=>e.match.status==='ok'||e.match.status==='avail').length;
 }
 
-function updateExportBar() {
-  document.getElementById('export-bar').style.display = scans.length > 0 ? 'flex' : 'none';
+// ── EXPORT ───────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!sessionLog.length) { toast('Keine Einträge'); return; }
+  const hdr = ['Nr','Zeit','EAN','Artikel_Nr','Preis','Filiale','Rückstand','Art.Status','Kz'];
+  const rows = sessionLog.map(e => [e.id,e.time,e.ean,e.artikelNr,e.preis,e.filiale,
+    {hit:'JA',ok:'NEIN',avail:'WIEDER VERFÜGBAR',nors:'KEIN RS'}[e.match.status],
+    e.match.row?e.match.row.status:'–', e.match.row?e.match.row.kz:'–']);
+  const csv = [hdr,...rows].map(r=>r.map(c=>`"${c}"`).join(';')).join('\n');
+  dl(csv,`scan-${stamp()}.csv`,'text/csv'); toast('CSV exportiert ✓');
 }
 
-function clearResults() {
-  scans = []; lastCode = ''; lastCodeTime = 0;
-  document.getElementById('last-scan').style.display = 'none';
-  renderTable(); updateExportBar();
+function exportJSON() {
+  if (!sessionLog.length) { toast('Keine Einträge'); return; }
+  const out = sessionLog.map(e=>({nr:e.id,zeit:e.time,ean:e.ean,artikelNr:e.artikelNr,
+    preis:e.preis,filiale:e.filiale,rueckstand:e.match.status,
+    artikelstatus:e.match.row?e.match.row.status:null,kz:e.match.row?e.match.row.kz:null}));
+  dl(JSON.stringify(out,null,2),`scan-${stamp()}.json`,'application/json'); toast('JSON exportiert ✓');
 }
 
-function togglePause() {
-  paused = !paused;
-  const btn  = document.getElementById('pause-btn');
-  const line = document.getElementById('scan-line');
-  btn.textContent = paused ? 'WEITER' : 'PAUSE';
-  paused ? btn.classList.add('primary') : btn.classList.remove('primary');
-  line.style.animationPlayState = paused ? 'paused' : 'running';
-  setStatus(paused ? 'Pausiert' : 'Scannt — EAN-Code in Rahmen halten', paused ? '' : 'active');
+function dl(content,filename,type) {
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=filename; a.click();
 }
-
-function stopScanner() {
-  if (scanning) { Quagga.offDetected(onDetected); Quagga.stop(); scanning = false; }
-  document.getElementById('scanner-ui').style.display = 'none';
-  document.getElementById('start-screen').style.display = 'flex';
-  clearResults();
+function stamp() { return new Date().toISOString().slice(0,10); }
+function show(id) { document.getElementById(id).classList.add('visible'); }
+function hide(id) { document.getElementById(id).classList.remove('visible'); }
+function toast(msg) {
+  const t=document.createElement('div'); t.className='toast'; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(),2200);
 }
-
-function setStatus(text, state) {
-  document.getElementById('status-text').textContent = text;
-  document.getElementById('status-dot').className = state || '';
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2000);
-}
-
-loadArtikelDB();
 </script>
 </body>
 </html>
