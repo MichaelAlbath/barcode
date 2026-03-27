@@ -338,9 +338,26 @@ function fallbackDecode() {
   img.src = canvas.toDataURL('image/jpeg', 0.8);
 }
 
+// Haptic: vibrate API + AudioContext click (scanner-feel)
+const _ac = new (window.AudioContext || window.webkitAudioContext)();
+
 function vibrate(pattern) {
   try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e){}
+  // Audio click as fallback / reinforcement
+  try {
+    const buf = _ac.createBuffer(1, _ac.sampleRate * 0.015, _ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+    const src = _ac.createBufferSource();
+    const gain = _ac.createGain();
+    gain.gain.setValueAtTime(0.18, _ac.currentTime);
+    src.buffer = buf; src.connect(gain); gain.connect(_ac.destination);
+    src.start();
+  } catch(e){}
 }
+
+// Resume AudioContext on first user interaction
+document.addEventListener('click', () => { if (_ac.state === 'suspended') _ac.resume(); }, {once:false});
 
 function onCode(raw) {
   const now = Date.now();
