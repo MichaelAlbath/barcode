@@ -23,282 +23,90 @@
     --font: 'Georgia', 'Times New Roman', serif;
     --font-mono: 'Courier New', monospace;
   }
-
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100dvh; display: flex; flex-direction: column; }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-  }
+  header { background: var(--accent); color: #f4f1eb; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .header-left h1 { font-size: 15px; font-weight: normal; letter-spacing: 0.18em; text-transform: uppercase; }
+  .header-left small { font-size: 10px; opacity: 0.45; letter-spacing: 0.12em; font-family: var(--font-mono); }
+  #db-badge { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 2px; padding: 4px 10px; color: rgba(244,241,235,0.7); transition: all 0.3s; }
+  #db-badge.loaded { background: rgba(42,125,79,0.3); border-color: rgba(42,125,79,0.6); color: #7de0a8; }
+  #db-badge.error  { background: rgba(200,57,43,0.2); border-color: rgba(200,57,43,0.4); color: #f08070; }
 
-  /* ── HEADER ── */
-  header {
-    background: var(--accent);
-    color: #f4f1eb;
-    padding: 14px 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-  }
-
-  .header-left h1 {
-    font-size: 15px;
-    font-weight: normal;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-  }
-
-  .header-left small {
-    font-size: 10px;
-    opacity: 0.45;
-    letter-spacing: 0.12em;
-    font-family: var(--font-mono);
-  }
-
-  #db-badge {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 2px;
-    padding: 4px 10px;
-    color: rgba(244,241,235,0.7);
-    transition: all 0.3s;
-  }
-
-  #db-badge.loaded {
-    background: rgba(42,125,79,0.3);
-    border-color: rgba(42,125,79,0.6);
-    color: #7de0a8;
-  }
-
-  #db-badge.error {
-    background: rgba(200,57,43,0.2);
-    border-color: rgba(200,57,43,0.4);
-    color: #f08070;
-  }
-
-  /* ── CAMERA ── */
-  #scanner-wrap {
-    position: relative;
-    width: 100%;
-    background: #000;
-    overflow: hidden;
-    flex-shrink: 0;
-  }
-
+  #scanner-wrap { position: relative; width: 100%; background: #000; overflow: hidden; flex-shrink: 0; }
   #interactive { width: 100%; height: 100%; position: absolute; inset: 0; }
   #interactive video, #interactive canvas { width: 100% !important; height: 100% !important; object-fit: cover; display: block; }
   #interactive canvas.drawingBuffer { display: none; }
-
   .scan-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
-
-  .scan-frame {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 78%; height: 80px;
-  }
-
-  .scan-frame::before, .scan-frame::after, .scan-frame .c3, .scan-frame .c4 {
-    content: ''; position: absolute; width: 22px; height: 22px;
-    border-color: #f4f1eb; border-style: solid;
-  }
+  .scan-frame { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 78%; height: 80px; }
+  .scan-frame::before, .scan-frame::after, .scan-frame .c3, .scan-frame .c4 { content: ''; position: absolute; width: 22px; height: 22px; border-color: #f4f1eb; border-style: solid; }
   .scan-frame::before { top:0; left:0; border-width: 2px 0 0 2px; }
   .scan-frame::after  { top:0; right:0; border-width: 2px 2px 0 0; }
   .scan-frame .c3 { bottom:0; left:0; border-width: 0 0 2px 2px; }
   .scan-frame .c4 { bottom:0; right:0; border-width: 0 2px 2px 0; }
-
-  .scan-line {
-    position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%, calc(-50% - 28px));
-    width: 78%; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--accent2), transparent);
-    animation: scanMove 1.8s ease-in-out infinite;
-  }
-  @keyframes scanMove {
-    0%,100% { transform: translate(-50%, calc(-50% - 28px)); opacity: 0.5; }
-    50%      { transform: translate(-50%, calc(-50% + 28px)); opacity: 1; }
-  }
-
+  .scan-line { position: absolute; top: 50%; left: 50%; transform: translate(-50%, calc(-50% - 28px)); width: 78%; height: 1px; background: linear-gradient(90deg, transparent, var(--accent2), transparent); animation: scanMove 1.8s ease-in-out infinite; }
+  @keyframes scanMove { 0%,100% { transform: translate(-50%, calc(-50% - 28px)); opacity: 0.5; } 50% { transform: translate(-50%, calc(-50% + 28px)); opacity: 1; } }
   .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 20; transition: opacity 0.04s; }
   .flash.active { opacity: 0.35; }
 
-  /* ── STATUS ── */
-  #status-bar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 7px 16px;
-    display: flex; align-items: center; gap: 8px;
-    font-family: var(--font-mono); font-size: 10px;
-    letter-spacing: 0.1em; min-height: 34px;
-  }
-
-  #status-dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--text-muted); flex-shrink: 0; transition: background 0.3s;
-  }
+  #status-bar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 7px 16px; display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; min-height: 34px; }
+  #status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; transition: background 0.3s; }
   #status-dot.active { background: var(--ok); animation: blink 1.4s infinite; }
   #status-dot.error  { background: var(--warn); }
   #status-dot.found  { background: var(--ok); animation: none; }
   @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
-
   #status-text { color: var(--text-muted); flex: 1; }
 
-  /* ── CONTROLS ── */
-  #controls {
-    display: flex; gap: 8px; padding: 10px 16px;
-    background: var(--surface); border-bottom: 1px solid var(--border);
-  }
-
-  button {
-    font-family: var(--font-mono); font-size: 10px;
-    letter-spacing: 0.15em; text-transform: uppercase;
-    padding: 8px 12px; border: 1px solid var(--border);
-    border-radius: 2px; cursor: pointer;
-    background: transparent; color: var(--text-muted);
-    transition: all 0.15s; flex: 1;
-  }
+  #controls { display: flex; gap: 8px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  button { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; padding: 8px 12px; border: 1px solid var(--border); border-radius: 2px; cursor: pointer; background: transparent; color: var(--text-muted); transition: all 0.15s; flex: 1; }
   button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
   button.primary { background: var(--accent); border-color: var(--accent); color: #f4f1eb; }
   button.primary:hover { background: #2d2d4e; }
-  button.danger { border-color: #ddd; }
   button.danger:hover { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
   button:disabled { opacity: 0.3; pointer-events: none; }
 
-  /* ── LAST SCAN ── */
-  #last-scan {
-    margin: 12px 16px 0;
-    border-radius: 3px;
-    padding: 10px 14px;
-    display: none;
-    align-items: center;
-    gap: 12px;
-    border: 1px solid;
-    animation: popIn 0.2s ease;
-  }
+  #last-scan { margin: 12px 16px 0; border-radius: 3px; padding: 10px 14px; display: none; align-items: center; gap: 12px; border: 1px solid; animation: popIn 0.2s ease; }
   @keyframes popIn { from{transform:scale(0.97);opacity:0} to{transform:scale(1);opacity:1} }
-
-  #last-scan.known   { background: var(--ok-bg);   border-color: #a8d8be; }
-  #last-scan.unknown { background: var(--warn-bg);  border-color: #f0b8b2; }
-
+  #last-scan.known   { background: var(--ok-bg);  border-color: #a8d8be; }
+  #last-scan.unknown { background: var(--warn-bg); border-color: #f0b8b2; }
   .ls-icon { font-size: 22px; flex-shrink: 0; }
   .ls-code { font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.1em; }
   .ls-name { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-  .ls-tag  { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em;
-             text-transform: uppercase; margin-left: auto; flex-shrink: 0; }
+  .ls-tag  { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; margin-left: auto; flex-shrink: 0; }
   .known .ls-tag  { color: var(--ok); }
   .unknown .ls-tag { color: var(--warn); }
 
-  /* ── RESULTS TABLE ── */
-  #results-section {
-    flex: 1; overflow-y: auto; padding: 12px 16px 20px;
-  }
-
-  .section-header {
-    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
-    text-transform: uppercase; color: var(--text-muted);
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 10px; padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-  }
-
+  #results-section { flex: 1; overflow-y: auto; padding: 12px 16px 20px; }
+  .section-header { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
   #scan-count { color: var(--accent); }
-
-  table {
-    width: 100%; border-collapse: collapse;
-    font-size: 12px; font-family: var(--font-mono);
-  }
-
-  thead th {
-    text-align: left; font-size: 9px; letter-spacing: 0.2em;
-    text-transform: uppercase; color: var(--text-muted);
-    padding: 0 8px 6px; border-bottom: 1px solid var(--border);
-    font-weight: normal;
-  }
-
-  tbody tr {
-    border-bottom: 1px solid var(--border);
-    transition: background 0.1s;
-    animation: rowIn 0.2s ease;
-  }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+  thead th { text-align: left; font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--text-muted); padding: 0 8px 6px; border-bottom: 1px solid var(--border); font-weight: normal; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; animation: rowIn 0.2s ease; }
   @keyframes rowIn { from{opacity:0;transform:translateX(-4px)} to{opacity:1;transform:none} }
-
   tbody tr:hover { background: var(--accent-light); }
   tbody tr.unknown-row td { color: var(--warn); }
-  tbody tr.pending-row td { color: var(--text-muted); font-style: italic; }
-  .td-pending { color: var(--text-muted) !important; font-size: 10px; }
-
   tbody td { padding: 8px; vertical-align: middle; }
-
-  td.td-num { color: var(--text-muted); font-size: 10px; width: 28px; }
-  td.td-ean { letter-spacing: 0.08em; }
+  td.td-num  { color: var(--text-muted); font-size: 10px; width: 28px; }
+  td.td-ean  { letter-spacing: 0.08em; }
   td.td-name { color: var(--text-muted); }
-  td.td-status { width: 24px; text-align: center; font-size: 14px; }
   td.td-time { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
 
-  .empty-state {
-    text-align: center; padding: 36px 20px; color: var(--text-muted);
-  }
+  .empty-state { text-align: center; padding: 36px 20px; color: var(--text-muted); }
   .empty-state .em-icon { font-size: 36px; opacity: 0.25; margin-bottom: 10px; }
   .empty-state p { font-size: 12px; line-height: 1.9; letter-spacing: 0.05em; font-family: var(--font-mono); }
 
-  /* ── EXPORT BAR ── */
-  #export-bar {
-    background: var(--surface); border-top: 1px solid var(--border);
-    padding: 10px 16px; display: none; gap: 8px;
-    position: sticky; bottom: 0;
-  }
+  #export-bar { background: var(--surface); border-top: 1px solid var(--border); padding: 10px 16px; display: none; gap: 8px; position: sticky; bottom: 0; }
 
-  /* ── START SCREEN ── */
-  #start-screen {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 40px 24px; text-align: center;
-  }
-
-  .start-barcode {
-    font-size: 42px; letter-spacing: -2px; opacity: 0.15;
-    margin-bottom: 28px; font-family: var(--font-mono);
-    line-height: 1;
-  }
-
-  #start-screen h2 {
-    font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase;
-    font-weight: normal; margin-bottom: 10px;
-  }
-
-  #start-screen p {
-    font-size: 12px; color: var(--text-muted); line-height: 1.9;
-    max-width: 300px; margin-bottom: 32px;
-    font-family: var(--font-mono); letter-spacing: 0.04em;
-  }
-
+  #start-screen { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; text-align: center; }
+  .start-barcode { font-size: 42px; letter-spacing: -2px; opacity: 0.15; margin-bottom: 28px; font-family: var(--font-mono); line-height: 1; }
+  #start-screen h2 { font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: normal; margin-bottom: 10px; }
+  #start-screen p { font-size: 12px; color: var(--text-muted); line-height: 1.9; max-width: 300px; margin-bottom: 32px; font-family: var(--font-mono); letter-spacing: 0.04em; }
   #start-btn { font-size: 11px; padding: 13px 40px; flex: unset; }
-
-  .db-status-msg {
-    margin-top: 16px; font-family: var(--font-mono);
-    font-size: 10px; letter-spacing: 0.1em; color: var(--text-muted);
-  }
+  .db-status-msg { margin-top: 16px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; color: var(--text-muted); }
   .db-status-msg.ok  { color: var(--ok); }
   .db-status-msg.err { color: var(--warn); }
 
-  /* ── TOAST ── */
-  #toast {
-    position: fixed; bottom: 80px; left: 50%;
-    transform: translateX(-50%) translateY(16px);
-    background: var(--accent); color: #f4f1eb;
-    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em;
-    padding: 8px 20px; border-radius: 2px;
-    opacity: 0; transition: all 0.22s; pointer-events: none;
-    white-space: nowrap; z-index: 200;
-  }
+  #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(16px); background: var(--accent); color: #f4f1eb; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; padding: 8px 20px; border-radius: 2px; opacity: 0; transition: all 0.22s; pointer-events: none; white-space: nowrap; z-index: 200; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
@@ -307,23 +115,20 @@
 <header>
   <div class="header-left">
     <h1>EAN Scanner</h1>
-    <small>EAN-13 · Artikelnummer · Abgleich</small>
+    <small>EAN-8 · EAN-13 · Rückstandsabgleich</small>
   </div>
   <div id="db-badge">DB: —</div>
 </header>
 
-<!-- START SCREEN -->
 <div id="start-screen">
   <div class="start-barcode">▮▯▮▮▯▮▯▮▮▯▮▯▮▮▯▮</div>
   <h2>Barcode Scanner</h2>
-  <p>Scannt EAN-8 / EAN-13 Codes und gleicht sie gegen die Artikeldatenbank ab. Export als Excel.</p>
+  <p>Scannt EAN-8 / EAN-13 Codes und gleicht sie gegen die Rückstandsliste ab. Export als Excel.</p>
   <button id="start-btn" class="primary" onclick="init()">KAMERA STARTEN</button>
   <div id="db-status-msg" class="db-status-msg">Lade Artikeldaten…</div>
 </div>
 
-<!-- SCANNER UI -->
 <div id="scanner-ui" style="display:none; flex-direction:column; flex:1;">
-
   <div id="scanner-wrap">
     <div id="interactive" class="viewport"></div>
     <div class="scan-overlay">
@@ -363,49 +168,36 @@
     <button class="primary" onclick="exportExcel()" style="flex:2">EXCEL EXPORTIEREN</button>
     <button onclick="clearResults()" class="danger">LISTE LEEREN</button>
   </div>
-
 </div>
 
 <div id="toast"></div>
 
 <script>
-// ── STATE ──────────────────────────────────────────────────────────────────
 let artikelDB = {};
-let dbLoaded = false;
-let scans = [];          // [{ ean, artnr, known, time, complete }]
+let scans = [];
 let scanning = false;
 let paused = false;
 let lastCode = '';
 let lastCodeTime = 0;
-const DEBOUNCE = 1200;
+const DEBOUNCE = 1600;
 
-// Pairing buffer
-let pendingEAN = null;       // { code, time }
-let pendingART = null;       // { code, time }
-let pairTimeout = null;
-const PAIR_WINDOW = 6000;    // ms to wait for second barcode
-
-// ── LOAD XLSX ──────────────────────────────────────────────────────────────
 async function loadArtikelDB() {
   const msgEl = document.getElementById('db-status-msg');
   const badge = document.getElementById('db-badge');
   try {
     const res = await fetch('./rs.xlsx');
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const arrayBuffer = await res.arrayBuffer();
-    const wb = XLSX.read(arrayBuffer, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
+    const buf = await res.arrayBuffer();
+    const wb  = XLSX.read(buf, { type: 'array' });
+    const ws  = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     let count = 0;
     for (const row of rows) {
-      const raw = row[0];
-      if (raw === '' || raw === null || raw === undefined) continue;
-      const ean = String(raw).trim().replace(/\D/g, '');
+      const ean = String(row[0] ?? '').trim().replace(/\D/g, '');
       if (!ean) continue;
       artikelDB[ean] = true;
       count++;
     }
-    dbLoaded = true;
     badge.textContent = 'DB: ' + count + ' Artikel';
     badge.className = 'loaded';
     msgEl.textContent = '✓ ' + count + ' Artikel geladen';
@@ -413,18 +205,15 @@ async function loadArtikelDB() {
   } catch(e) {
     badge.textContent = 'DB: Fehler';
     badge.className = 'error';
-    msgEl.textContent = '⚠ rs.xlsx nicht gefunden — Scans werden als "kein Rückstand" markiert';
+    msgEl.textContent = '⚠ rs.xlsx nicht gefunden — alle Scans als "kein Rückstand"';
     msgEl.className = 'db-status-msg err';
   }
 }
 
-// ── INIT ───────────────────────────────────────────────────────────────────
 async function init() {
   document.getElementById('start-screen').style.display = 'none';
-  const ui = document.getElementById('scanner-ui');
-  ui.style.display = 'flex';
-  const wrap = document.getElementById('scanner-wrap');
-  wrap.style.height = Math.round(window.innerWidth * 0.62) + 'px';
+  document.getElementById('scanner-ui').style.display = 'flex';
+  document.getElementById('scanner-wrap').style.height = Math.round(window.innerWidth * 0.62) + 'px';
   setStatus('Initialisiere Kamera…', '');
 
   Quagga.init({
@@ -435,9 +224,8 @@ async function init() {
       area: { top: '20%', right: '5%', left: '5%', bottom: '20%' },
     },
     decoder: {
-      readers: ['ean_reader', 'ean_8_reader', 'code_128_reader'],
-      debug: { showCanvas:false, showPatches:false, showFoundPatches:false,
-               showSkeleton:false, showLabels:false, showPatchLabels:false }
+      readers: ['ean_reader', 'ean_8_reader'],
+      debug: { showCanvas:false, showPatches:false, showFoundPatches:false, showSkeleton:false, showLabels:false, showPatchLabels:false }
     },
     locate: true,
     numOfWorkers: navigator.hardwareConcurrency > 2 ? 2 : 1,
@@ -447,215 +235,117 @@ async function init() {
     Quagga.start();
     scanning = true;
     document.getElementById('pause-btn').disabled = false;
-    setStatus('Scannt — Barcode in Rahmen halten', 'active');
+    setStatus('Scannt — EAN-Code in Rahmen halten', 'active');
   });
 
   Quagga.onDetected(onDetected);
 }
 
-// ── DETECTION ─────────────────────────────────────────────────────────────
 function onDetected(result) {
   if (paused) return;
-  const code = result.codeResult.code.trim();
-  const format = result.codeResult.format;
-  const now = Date.now();
-
-  // Debounce same code
+  const code = result.codeResult.code;
+  const now  = Date.now();
   if (code === lastCode && (now - lastCodeTime) < DEBOUNCE) return;
+  if (!validateEAN(code)) return;
+  if (scans.some(s => s.ean === code)) return;
   lastCode = code;
   lastCodeTime = now;
 
-  const isEAN   = (format === 'ean_13' || format === 'ean_8') && validateEAN(code);
-  const isART   = format === 'code_128' && /^\d{10}$/.test(code);
-
-  if (!isEAN && !isART) return;
-
-  // Duplicate guard — ignore if already fully in scans list
-  if (isEAN  && scans.some(s => s.ean   === code && s.complete)) return;
-  if (isART  && scans.some(s => s.artnr === code && s.complete)) return;
-
-  doFlash();
-
-  if (isEAN) {
-    pendingEAN = { code, time: now };
-    setStatus('EAN erfasst — jetzt Artikelnummer scannen…', 'active');
-  } else {
-    pendingART = { code, time: now };
-    setStatus('Artikelnummer erfasst — jetzt EAN scannen…', 'active');
-  }
-
-  tryPair(now);
-}
-
-function tryPair(now) {
-  clearTimeout(pairTimeout);
-
-  // Both present and recent enough → commit pair
-  if (pendingEAN && pendingART) {
-    const ageDiff = Math.abs(pendingEAN.time - pendingART.time);
-    if (ageDiff < PAIR_WINDOW) {
-      commitScan(pendingEAN.code, pendingART.code, true);
-      pendingEAN = null;
-      pendingART = null;
-      return;
-    }
-  }
-
-  // Wait for partner; commit as incomplete after timeout
-  pairTimeout = setTimeout(() => {
-    if (pendingEAN || pendingART) {
-      const ean   = pendingEAN ? pendingEAN.code : '—';
-      const artnr = pendingART ? pendingART.code : '—';
-      commitScan(ean, artnr, false);
-      pendingEAN = null;
-      pendingART = null;
-    }
-  }, PAIR_WINDOW);
-}
-
-function commitScan(ean, artnr, complete) {
-  const known = artnr !== '—' && artikelDB[artnr] === true;
-  const time  = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-
-  scans.unshift({ ean, artnr, known, time, complete });
-
-  if (navigator.vibrate) navigator.vibrate(60);
-  showLastScan(ean, artnr, known, complete);
-  renderTable();
-  updateExportBar();
-  const statusLabel = complete ? '' : ' (unvollständig)';
-  setStatus((known ? '✓ ' : '⚠ ') + artnr + (known ? ' — Rückstand' : ' — kein Rückstand') + statusLabel, 'found');
-  setTimeout(() => { if (scanning && !paused) setStatus('Scannt — Barcode in Rahmen halten', 'active'); }, 2500);
-}
-
-function doFlash() {
   const flash = document.getElementById('flash');
   flash.classList.add('active');
   setTimeout(() => flash.classList.remove('active'), 100);
+  if (navigator.vibrate) navigator.vibrate(55);
+
+  const known = artikelDB[code] === true;
+  const time  = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  scans.unshift({ ean: code, known, time });
+
+  showLastScan(code, known);
+  renderTable();
+  updateExportBar();
+  setStatus((known ? '✓ ' : '⚠ ') + code + (known ? ' — Rückstand' : ' — kein Rückstand'), 'found');
+  setTimeout(() => { if (scanning && !paused) setStatus('Scannt — EAN-Code in Rahmen halten', 'active'); }, 2200);
 }
 
 function validateEAN(code) {
   if (!/^\d{8}$|^\d{13}$/.test(code)) return false;
   const digits = code.split('').map(Number);
-  const check = digits.pop();
-  const len = digits.length + 1;
-  const sum = digits.reduce((acc, d, i) =>
+  const check  = digits.pop();
+  const len    = digits.length + 1;
+  const sum    = digits.reduce((acc, d, i) =>
     acc + (len === 13 ? (i % 2 === 0 ? d : d * 3) : (i % 2 === 0 ? d * 3 : d)), 0);
   return (10 - (sum % 10)) % 10 === check;
 }
 
-// ── LAST SCAN CARD ─────────────────────────────────────────────────────────
-function showLastScan(ean, artnr, known, complete) {
+function showLastScan(code, known) {
   const el = document.getElementById('last-scan');
   el.className = known ? 'known' : 'unknown';
   el.style.display = 'flex';
-  const incompleteNote = !complete ? '<div class="ls-name" style="color:var(--warn);font-size:10px;">⚠ unvollständig</div>' : '';
   el.innerHTML = `
     <span class="ls-icon">${known ? '✓' : '⚠'}</span>
     <div>
-      <div class="ls-code">${artnr !== '—' ? artnr : ean}</div>
-      <div class="ls-name">EAN: ${ean}</div>
-      ${incompleteNote}
+      <div class="ls-code">${code}</div>
+      <div class="ls-name">${known ? 'In Rückstandsliste' : 'Nicht in Rückstandsliste'}</div>
     </div>
     <span class="ls-tag">${known ? 'RÜCKSTAND' : 'KEIN RÜCKSTAND'}</span>
   `;
 }
 
-// ── TABLE ──────────────────────────────────────────────────────────────────
 function renderTable() {
   const container = document.getElementById('results-body');
   if (scans.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="em-icon">▮▮▮▮▮▮▮▮▮▮▮</div><p>Noch keine Scans.<br>Barcode in den Rahmen halten.</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="em-icon">▮▮▮▮▮▮▮▮▮▮▮</div><p>Noch keine Scans.<br>EAN-Code in den Rahmen halten.</p></div>`;
     document.getElementById('scan-count').textContent = '0 Artikel';
     return;
   }
-
   document.getElementById('scan-count').textContent = scans.length + ' Artikel';
-
-  let html = `<table><thead><tr>
-    <th>#</th><th>EAN</th><th>Artikelnr.</th><th>Status</th><th>Zeit</th>
-  </tr></thead><tbody>`;
-
+  let html = `<table><thead><tr><th>#</th><th>EAN</th><th>Status</th><th>Zeit</th></tr></thead><tbody>`;
   scans.forEach((s, i) => {
-    const cls = !s.complete ? 'pending-row' : (s.known ? '' : 'unknown-row');
-    html += `<tr class="${cls}">
+    html += `<tr class="${s.known ? '' : 'unknown-row'}">
       <td class="td-num">${scans.length - i}</td>
       <td class="td-ean">${s.ean}</td>
-      <td class="td-ean">${s.artnr}</td>
-      <td class="td-name">${s.known ? 'Rückstand' : 'kein Rückstand'}${!s.complete ? ' ?' : ''}</td>
+      <td class="td-name">${s.known ? 'Rückstand' : 'kein Rückstand'}</td>
       <td class="td-time">${s.time}</td>
     </tr>`;
   });
-
   html += '</tbody></table>';
   container.innerHTML = html;
 }
 
-// ── EXPORT EXCEL ───────────────────────────────────────────────────────────
 function exportExcel() {
   if (scans.length === 0) { showToast('Keine Scans vorhanden'); return; }
-
-  const wsData = [['EAN', 'Artikelnummer', 'Status', 'Scanzeit']];
-  scans.forEach(s => {
-    wsData.push([
-      s.ean,
-      s.artnr,
-      s.known ? 'Rückstand' : 'kein Rückstand',
-      s.time
-    ]);
-  });
-
+  const wsData = [['EAN', 'Status', 'Scanzeit']];
+  scans.forEach(s => wsData.push([s.ean, s.known ? 'Rückstand' : 'kein Rückstand', s.time]));
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 12 }];
+  ws['!cols'] = [{ wch: 16 }, { wch: 16 }, { wch: 12 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Scans');
-
-  const date = new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb, `EAN_Scans_${date}.xlsx`);
+  XLSX.writeFile(wb, `EAN_Scans_${new Date().toISOString().slice(0,10)}.xlsx`);
   showToast('Excel gespeichert ✓');
 }
 
-// ── HELPERS ────────────────────────────────────────────────────────────────
 function updateExportBar() {
-  const bar = document.getElementById('export-bar');
-  bar.style.display = scans.length > 0 ? 'flex' : 'none';
+  document.getElementById('export-bar').style.display = scans.length > 0 ? 'flex' : 'none';
 }
 
 function clearResults() {
-  scans = [];
-  lastCode = '';
-  lastCodeTime = 0;
-  pendingEAN = null;
-  pendingART = null;
-  clearTimeout(pairTimeout);
+  scans = []; lastCode = ''; lastCodeTime = 0;
   document.getElementById('last-scan').style.display = 'none';
-  renderTable();
-  updateExportBar();
+  renderTable(); updateExportBar();
 }
 
 function togglePause() {
   paused = !paused;
-  const btn = document.getElementById('pause-btn');
+  const btn  = document.getElementById('pause-btn');
   const line = document.getElementById('scan-line');
-  if (paused) {
-    btn.textContent = 'WEITER';
-    btn.classList.add('primary');
-    line.style.animationPlayState = 'paused';
-    setStatus('Pausiert', '');
-  } else {
-    btn.textContent = 'PAUSE';
-    btn.classList.remove('primary');
-    line.style.animationPlayState = 'running';
-    setStatus('Scannt — Barcode in Rahmen halten', 'active');
-  }
+  btn.textContent = paused ? 'WEITER' : 'PAUSE';
+  paused ? btn.classList.add('primary') : btn.classList.remove('primary');
+  line.style.animationPlayState = paused ? 'paused' : 'running';
+  setStatus(paused ? 'Pausiert' : 'Scannt — EAN-Code in Rahmen halten', paused ? '' : 'active');
 }
 
 function stopScanner() {
-  if (scanning) {
-    Quagga.offDetected(onDetected);
-    Quagga.stop();
-    scanning = false;
-  }
+  if (scanning) { Quagga.offDetected(onDetected); Quagga.stop(); scanning = false; }
   document.getElementById('scanner-ui').style.display = 'none';
   document.getElementById('start-screen').style.display = 'flex';
   clearResults();
@@ -673,7 +363,6 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2000);
 }
 
-// ── BOOT ───────────────────────────────────────────────────────────────────
 loadArtikelDB();
 </script>
 </body>
