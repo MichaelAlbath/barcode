@@ -338,12 +338,17 @@ function fallbackDecode() {
   img.src = canvas.toDataURL('image/jpeg', 0.8);
 }
 
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e){}
+}
+
 function onCode(raw) {
   const now = Date.now();
   const code = raw.replace(/\D/g,'');
   if (code === lastCode && now - lastTime < 3000) return;
   lastCode = code; lastTime = now;
   document.getElementById('camSt').textContent = `✓ ${code}`;
+  vibrate(80);
   handleScan(code);
 }
 
@@ -404,7 +409,14 @@ function addF(parent,lbl,val,cls){
 let sessionLog=[], scanCounter=0;
 
 function addLog(gtin,match){
+  // Deduplicate: skip if same GTIN already in log
+  if (sessionLog.some(e => e.gtin === gtin)) {
+    document.getElementById('camSt').textContent = `↻ ${gtin} (bereits erfasst)`;
+    vibrate([40,60,40]); // double pulse = duplicate
+    return;
+  }
   scanCounter++;
+  vibrate(60);
   sessionLog.unshift({id:scanCounter,time:new Date().toLocaleTimeString('de-DE'),gtin,match});
   renderLog(); updateStats();
 }
