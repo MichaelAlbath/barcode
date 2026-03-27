@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Budni · Rückstand-Check</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -14,7 +14,7 @@
   --ok:#00963A; --warn:#E67E00; --err:#E8002D; --info:#009FE3;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;min-height:100vh}
+body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;min-height:100vh;min-height:-webkit-fill-available}
 
 /* HEADER */
 header{display:flex;align-items:center;gap:12px;padding:14px 20px;
@@ -27,7 +27,7 @@ header{display:flex;align-items:center;gap:12px;padding:14px 20px;
 .hs b{font-size:17px;display:block;line-height:1;color:#009FE3}
 
 /* LAYOUT */
-.app{display:grid;grid-template-columns:360px 1fr;min-height:calc(100vh - 51px)}
+.app{display:grid;grid-template-columns:360px 1fr}
 @media(max-width:740px){.app{grid-template-columns:1fr}}
 
 /* LEFT */
@@ -173,10 +173,7 @@ tr:hover td{background:#1c1c1c}
     </div>
 
     <!-- RESULT -->
-    <div id="res-card">
-      <div id="resBanner" class="res-banner"></div>
-      <div class="res-fields" id="resFields"></div>
-    </div>
+<!-- scan result popup (outside layout flow) -->
 
   </div>
 
@@ -404,7 +401,12 @@ function showResult(status, gtin, row) {
       </div>`;
     fields.appendChild(det);
   }
-  document.getElementById('res-card').classList.add('show');
+  // Show popup and auto-dismiss after 3s
+  const popup = document.getElementById('scan-popup');
+  popup.classList.add('show');
+  clearTimeout(popup._timer);
+  popup._timer = setTimeout(() => popup.classList.remove('show'), 3000);
+  popup.onclick = () => { clearTimeout(popup._timer); popup.classList.remove('show'); };
 
   // screen flash
   const fc={hit:'rgba(232,0,45,.15)',avail:'rgba(0,159,227,.12)',ok:'rgba(0,150,58,.12)',nors:'rgba(230,126,0,.1)'};
@@ -485,5 +487,9 @@ function dl(c,f,t){const a=document.createElement('a');a.href=URL.createObjectUR
 function stamp(){return new Date().toISOString().slice(0,10);}
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
 </script>
+<div id="scan-popup">
+  <div id="resBanner" class="res-banner"></div>
+  <div class="res-fields" id="resFields"></div>
+</div>
 </body>
 </html>
