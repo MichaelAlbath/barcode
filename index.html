@@ -286,6 +286,8 @@ async function toggleCam() {
     video.srcObject = stream;
     await video.play();
     st.textContent = 'Scanbereit';
+    // Pre-warm audio on camera start (user gesture active here)
+    try { const a = new Audio(_beepSrc); a.volume = 0; a.play().then(() => a.pause()).catch(()=>{}); } catch(e){}
     startDecode();
   } catch(e) {
     st.textContent = 'Fehler: ' + e.message;
