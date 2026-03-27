@@ -358,7 +358,6 @@ function onCode(raw) {
   if (code === lastCode && now - lastTime < 3000) return;
   lastCode = code; lastTime = now;
   document.getElementById('camSt').textContent = `✓ ${code}`;
-  vibrate(80);
   handleScan(code);
 }
 
@@ -373,11 +372,12 @@ const ST = {
 function handleScan(gtin) {
   if (!rsData) { showResult('nors',gtin,null); addLog(gtin,{status:'nors'}); return; }
   const found = rsData.get(gtin)||null;
-  if (!found)  { showResult('ok',gtin,null);   addLog(gtin,{status:'ok'});   return; }
+  if (!found)  { showResult('ok',gtin,null);   addLog(gtin,{status:'ok'});   vibrate(60); return; }
   const imRS = found.kz.toLowerCase().includes('rückstand') && !found.kz.toLowerCase().includes('wieder');
   const s = imRS ? 'hit' : 'avail';
   showResult(s, gtin, found);
   addLog(gtin, {status:s, row:found});
+  vibrate(60);
 }
 
 function showResult(status, gtin, row) {
@@ -428,7 +428,7 @@ function addLog(gtin,match){
   // Deduplicate: skip if same GTIN already in log
   if (sessionLog.some(e => e.gtin === gtin)) {
     document.getElementById('camSt').textContent = `↻ ${gtin} (bereits erfasst)`;
-    vibrate([40,60,40]); // double pulse = duplicate
+    // duplicate – no beep
     return;
   }
   scanCounter++;
