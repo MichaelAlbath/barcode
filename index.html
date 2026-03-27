@@ -236,7 +236,7 @@ tr:hover td{background:#1c1c1c}
   <div class="right">
     <div class="sec-hdr">Session-Log</div>
     <div class="toolbar">
-      <button class="btn-sm" onclick="exportCSV()">CSV</button>
+      <button class="btn-sm" onclick="exportCSV()">CSV / Mail</button>
       <button class="btn-sm" onclick="exportJSON()">JSON</button>
       <button class="btn-sm d" onclick="clearLog()">Leeren</button>
       <span class="log-count" id="logCount">0 Einträge</span>
@@ -423,7 +423,7 @@ const ST = {
 };
 
 function handleScan(gtin) {
-  if (!rsData) { showResult('nors',gtin,null); addLog(gtin,{status:'nors'}); return; }
+  if (!rsData) { showResult('nors',gtin,null); addLog(gtin,{status:'nors'}); vibrate(60); return; }
   const found = rsData.get(gtin)||null;
   if (!found)  { showResult('ok',gtin,null);   addLog(gtin,{status:'ok'});   vibrate(60); return; }
   const imRS = found.kz.toLowerCase().includes('rückstand') && !found.kz.toLowerCase().includes('wieder');
@@ -525,8 +525,26 @@ function exportCSV(){
   const rows=sessionLog.map(e=>[e.id,e.time,e.gtin,
     e.match.row?e.match.row.artikelNr:'–',lb[e.match.status],
     e.match.row?e.match.row.status:'–',e.match.row?e.match.row.kz:'–']);
-  dl([hdr,...rows].map(r=>r.map(c=>`"${c}"`).join(';')).join('\n'),`rueckstand-${stamp()}.csv`,'text/csv');
-  toast('CSV exportiert ✓');
+  const csv=[hdr,...rows].map(r=>r.map(c=>`"${c}"`).join(';')).join('\n');
+  const filename=`rueckstand-${stamp()}.csv`;
+  const file=new File([csv],filename,{type:'text/csv'});
+  // Try Web Share API (mobile – hands CSV to Mail, WhatsApp etc.)
+  if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file],title:'Budni Rückstand-Export',text:`Scan-Export ${stamp()}`})
+      .then(()=>toast('Geteilt ✓'))
+      .catch(e=>{ if(e.name!=='AbortError') mailFallback(csv,filename); });
+  } else {
+    // Fallback: download + open mail client
+    mailFallback(csv,filename);
+  }
+}
+function mailFallback(csv,filename){
+  dl(csv,filename,'text/csv');
+  const hit=sessionLog.filter(e=>e.match.status==='hit').length;
+  const subject=encodeURIComponent(`Budni Rückstand-Export ${stamp()}`);
+  const body=encodeURIComponent(`Hallo,\n\nbitte die angehängte CSV-Datei prüfen.\n\n${sessionLog.length} Scans · ${hit} Rückstände\n\nDatum: ${new Date().toLocaleDateString('de-DE')}`);
+  setTimeout(()=>{ window.location.href=`mailto:?subject=${subject}&body=${body}`; },400);
+  toast('CSV gespeichert · Mail geöffnet');
 }
 function exportJSON(){
   if(!sessionLog.length){toast('Keine Einträge');return;}
