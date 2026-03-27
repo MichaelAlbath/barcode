@@ -225,11 +225,12 @@ async function init() {
     },
     decoder: {
       readers: ['ean_reader', 'ean_8_reader'],
+      multiple: false,
       debug: { showCanvas:false, showPatches:false, showFoundPatches:false, showSkeleton:false, showLabels:false, showPatchLabels:false }
     },
-    locate: true,
-    numOfWorkers: navigator.hardwareConcurrency > 2 ? 2 : 1,
-    frequency: 10,
+    locate: false,
+    numOfWorkers: navigator.hardwareConcurrency >= 4 ? 4 : 2,
+    frequency: 20,
   }, err => {
     if (err) { setStatus('Kamera-Fehler: ' + err.message, 'error'); return; }
     Quagga.start();
