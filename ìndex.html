@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budni · Rückstand-Check</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.1/umd/index.min.js"></script>
+<style>
+:root {
+  --bg:#F4F7FB; --s:#FFFFFF; --s2:#EEF3FA; --b:#D0DCF0;
+  --a:#003B6E; --t:#1a1a2e; --mu:#7A90B0;
+  --ok:#00963A; --warn:#E67E00; --err:#E8002D; --info:#009FE3;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;}
+
+/* HEADER */
+header{display:flex;align-items:center;gap:12px;padding:14px 20px;
+  border-bottom:1px solid #002a54;background:#003B6E;position:sticky;top:0;z-index:50}
+.logo{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+  color:#FFFFFF;letter-spacing:.1em}
+.logo span{color:rgba(255,255,255,.4)}
+.hstats{display:flex;gap:16px}
+.hs{font-family:'Space Mono',monospace;font-size:10px;text-align:right}
+.hs b{font-size:17px;display:block;line-height:1;color:#009FE3}
+
+/* LAYOUT */
+.app{display:grid;grid-template-columns:360px 1fr}
+@media(max-width:740px){.app{grid-template-columns:1fr}}
+
+/* LEFT */
+.left{border-right:1px solid var(--b);padding:16px;display:flex;flex-direction:column;gap:14px}
+
+/* RS BOX */
+.rs-box{border:1px solid var(--b);border-radius:6px;padding:12px;background:var(--s)}
+.rs-box.loaded{border-color:var(--ok);background:#e8f7ef}
+.boxtitle{font-family:'Space Mono',monospace;font-size:9px;color:var(--mu);
+  letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.rs-row{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mu)}
+.rs-row.ok{color:var(--ok)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--mu);flex-shrink:0}
+.dot.ok{background:var(--ok);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.rs-kw{font-family:'Space Mono',monospace;font-size:12px;color:#003B6E;
+  font-weight:700;margin-top:4px}
+.rs-meta{font-family:'Space Mono',monospace;font-size:10px;color:var(--ok);margin-top:2px}
+.btn-file{margin-top:8px;width:100%;background:transparent;border:1px dashed var(--b);
+  color:var(--mu);font-family:'Space Mono',monospace;font-size:11px;padding:7px;
+  border-radius:4px;cursor:pointer;transition:all .15s}
+.btn-file:hover{border-color:#003B6E;color:#003B6E}
+input[type=file]{display:none}
+
+/* CAMERA */
+.cam-box{border:1px solid var(--b);border-radius:8px;overflow:hidden;background:#000}
+.cam-wrap{position:relative;width:100%;background:#000;aspect-ratio:4/3;overflow:hidden}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.frame-overlay{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  pointer-events:none}
+.scan-frame{
+  width:75%;aspect-ratio:3.5/1;border:2px solid #009FE3;border-radius:4px;
+  box-shadow:0 0 0 9999px rgba(0,0,0,.5);position:relative;overflow:hidden}
+.scan-line{
+  position:absolute;left:0;right:0;height:2px;background:#009FE3;
+  animation:scanline 1.6s ease-in-out infinite}
+@keyframes scanline{0%,100%{top:0}50%{top:calc(100% - 2px)}}
+.cam-hint{position:absolute;bottom:8px;left:0;right:0;text-align:center;
+  font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,.45)}
+
+.cam-controls{padding:10px 12px;display:flex;gap:8px;align-items:center;
+  background:#EEF3FA;border-top:1px solid var(--b)}
+.btn-cam{flex:1;background:#003B6E;color:#fff;border:none;padding:10px;
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+  cursor:pointer;border-radius:4px;transition:all .15s}
+.btn-cam:hover{background:#004f96}
+.btn-cam.stop{background:var(--err);color:#fff}
+.cam-st{font-family:'Space Mono',monospace;font-size:10px;color:var(--mu)}
+
+/* RESULT */
+#res-card{display:none;border:1px solid var(--b);border-radius:6px;overflow:hidden;background:var(--s)}
+.res-banner{padding:14px 16px;display:flex;align-items:center;gap:12px;
+  font-family:'Space Mono',monospace;font-size:12px;font-weight:700}
+.res-icon{font-size:22px}
+.res-sub{font-size:10px;font-weight:400;margin-top:3px;opacity:.7}
+.res-fields{padding:10px;display:flex;flex-direction:column;gap:5px}
+.rf{display:flex;gap:8px;align-items:baseline;padding:8px 10px;
+  background:var(--s2);border-radius:4px;border:1px solid var(--b)}
+.rf-l{font-family:'Space Mono',monospace;font-size:9px;color:var(--mu);
+  text-transform:uppercase;letter-spacing:.06em;min-width:96px;flex-shrink:0}
+.rf-v{font-size:13px;font-weight:600}
+.rf-v.mono{font-family:'Space Mono',monospace;font-size:12px}
+.rf-v.big{font-family:'Space Mono',monospace;font-size:17px;color:var(--a)}
+
+/* RIGHT */
+.right{padding:16px;display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+.sec-hdr{font-family:'Space Mono',monospace;font-size:10px;color:var(--mu);
+  text-transform:uppercase;letter-spacing:.1em;display:flex;align-items:center;gap:8px}
+.sec-hdr::after{content:'';flex:1;height:1px;background:var(--b)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn-sm{background:transparent;border:1px solid var(--b);color:var(--mu);
+  padding:6px 12px;font-family:'Space Mono',monospace;font-size:11px;
+  cursor:pointer;border-radius:4px;transition:all .15s}
+.btn-sm:hover{border-color:var(--a);color:var(--a)}
+.btn-sm.d:hover{border-color:var(--err);color:var(--err)}
+.log-count{margin-left:auto;font-family:'Space Mono',monospace;font-size:11px;color:var(--mu)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--b);border-radius:6px;background:var(--s)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{font-family:'Space Mono',monospace;font-size:9px;color:#5a7090;
+  letter-spacing:.07em;text-transform:uppercase;padding:8px 10px;
+  text-align:left;border-bottom:1px solid var(--b);background:#EEF3FA;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #1c1c1c;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#1c1c1c}
+.tag{display:inline-block;padding:2px 7px;border-radius:3px;
+  font-family:'Space Mono',monospace;font-size:10px;font-weight:700}
+.tag.hit  {background:#fdecea;color:var(--err); border:1px solid var(--err)}
+.tag.ok   {background:#e8f7ef;color:var(--ok);  border:1px solid var(--ok)}
+.tag.avail{background:#e5f5fd;color:#0077b8;border:1px solid #009FE3}
+.tag.nors {background:#fff4e5;color:var(--warn);border:1px solid var(--warn)}
+.mono-sm{font-family:'Space Mono',monospace;font-size:11px}
+.del-btn{background:none;border:none;color:var(--mu);cursor:pointer;font-size:14px;padding:0 4px}
+.del-btn:hover{color:var(--err)}
+.empty-log{text-align:center;padding:48px 20px;color:var(--mu);
+  font-family:'Space Mono',monospace;font-size:12px}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  background:#003B6E;color:#fff;font-family:'Space Mono',monospace;
+  font-size:12px;font-weight:700;padding:10px 20px;border-radius:4px;z-index:999;pointer-events:none}
+
+@keyframes ff{0%{opacity:.5}100%{opacity:0}}
+
+/* ── SCAN POPUP ── */
+#scan-popup{
+  display:none;
+  position:fixed;
+  bottom:32px;
+  left:50%;
+  transform:translateX(-50%);
+  min-width:280px;
+  max-width:88vw;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.22);
+  z-index:9000;
+}
+#scan-popup.show{
+  display:block;
+  animation:popIn .22s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes popIn{
+  from{opacity:0;transform:translateX(-50%) translateY(20px)}
+  to{opacity:1;transform:translateX(-50%) translateY(0)}
+}
+#scan-popup .res-banner{
+  padding:16px 18px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  font-family:'Space Mono',monospace;
+  font-size:13px;
+  font-weight:700;
+}
+#scan-popup .res-icon{font-size:24px}
+#scan-popup .res-sub{font-size:10px;font-weight:400;margin-top:3px;opacity:.8}
+#scan-popup .res-fields{
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  background:#fff;
+}
+#scan-popup .rf{
+  display:flex;gap:8px;align-items:baseline;
+  padding:7px 10px;background:#EEF3FA;
+  border-radius:4px;border:1px solid #D0DCF0;
+}
+#scan-popup .rf-l{
+  font-family:'Space Mono',monospace;font-size:9px;color:#7A90B0;
+  text-transform:uppercase;letter-spacing:.06em;min-width:96px;flex-shrink:0;
+}
+#scan-popup .rf-v{font-size:13px;font-weight:600;color:#1a1a2e}
+#scan-popup .rf-v.mono{font-family:'Space Mono',monospace;font-size:12px}
+#scan-popup .rf-v.big{font-family:'Space Mono',monospace;font-size:18px;color:#003B6E}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Budni <span>/</span> Rückstand-Check</div>
+  <button id="btnFs" onclick="toggleFs()" title="Vollbild"
+    style="margin-left:auto;margin-right:12px;background:none;border:1px solid rgba(255,255,255,.25);
+    color:rgba(255,255,255,.8);font-size:15px;cursor:pointer;padding:5px 9px;
+    border-radius:4px;line-height:1;flex-shrink:0;">⛶</button>
+  <div class="hstats">
+    <div class="hs"><b id="hT">0</b>GESCANNT</div>
+    <div class="hs"><b id="hH" style="color:#ff7a8a">0</b>RÜCKSTAND</div>
+    <div class="hs"><b id="hO" style="color:#4cdf8a">0</b>OK/VERF.</div>
+  </div>
+</header>
+
+<div class="app">
+  <div class="left">
+
+    <!-- RS -->
+    <div class="rs-box" id="rsBox">
+      <div class="boxtitle">Referenzdatei · rs.xlsx</div>
+      <div class="rs-row" id="rsRow"><span class="dot" id="rsDot"></span>Nicht geladen</div>
+      <div class="rs-kw" id="rsKw"></div>
+      <div class="rs-meta" id="rsMeta"></div>
+      <button class="btn-file" onclick="document.getElementById('rsFile').click()">Manuell laden</button>
+      <input type="file" id="rsFile" accept=".xlsx,.xls">
+    </div>
+
+    <!-- CAMERA -->
+    <div class="cam-box">
+      <div class="cam-wrap">
+        <video id="video" playsinline autoplay muted></video>
+        <div class="frame-overlay">
+          <div class="scan-frame"><div class="scan-line"></div></div>
+        </div>
+        <div class="cam-hint">Barcode in den Rahmen halten</div>
+      </div>
+      <div class="cam-controls">
+        <button class="btn-cam" id="btnCam" onclick="toggleCam()">▶ Kamera starten</button>
+        <span class="cam-st" id="camSt">–</span>
+      </div>
+    </div>
+
+    <!-- RESULT -->
+<!-- scan result popup (outside layout flow) -->
+
+  </div>
+
+  <div class="right">
+    <div class="sec-hdr">Session-Log</div>
+    <div class="toolbar">
+      <button class="btn-sm" onclick="exportCSV()">CSV / Mail</button>
+      <button class="btn-sm" onclick="exportJSON()">JSON</button>
+      <button class="btn-sm d" onclick="clearLog()">Leeren</button>
+      <span class="log-count" id="logCount">0 Einträge</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>#</th><th>Zeit</th><th>GTIN</th><th>Artikel_Nr</th>
+              <th>Rückstand</th><th>Status</th><th>Kz</th><th></th></tr>
+        </thead>
+        <tbody id="logBody">
+          <tr><td colspan="8" class="empty-log">Noch keine Scans</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── RS ────────────────────────────────────────────────────────────────────────
+let rsData = null;
+
+function loadRs(buf, kwLabel, metaLabel) {
+  const wb = XLSX.read(buf, { type:'array' });
+  const ws = wb.Sheets['Einzeldaten'];
+  if (!ws) { alert('Sheet "Einzeldaten" nicht gefunden'); return; }
+  const rows = XLSX.utils.sheet_to_json(ws, { defval:'' });
+  rsData = new Map();
+  rows.forEach(r => {
+    const gtin = String(r['GTIN']||'').trim();
+    if (gtin) rsData.set(gtin, {
+      gtin, artikelNr: String(r['Artikel_Nr']||'').trim(),
+      kz: String(r['Kz Rückstand value']||'').trim(),
+      status: String(r['Artikelstatus']||'').trim()
+    });
+  });
+  document.getElementById('rsBox').classList.add('loaded');
+  document.getElementById('rsDot').classList.add('ok');
+  const row = document.getElementById('rsRow');
+  row.className='rs-row ok';
+  row.innerHTML='<span class="dot ok"></span>Geladen';
+  document.getElementById('rsKw').textContent   = kwLabel  || '';
+  document.getElementById('rsMeta').textContent = `${rows.length} Artikel · ${metaLabel||''}`;
+}
+
+document.getElementById('rsFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => loadRs(ev.target.result,'','manuell');
+  r.readAsArrayBuffer(f);
+});
+
+(async () => {
+  try {
+    const res = await fetch('rs.xlsx');
+    if (!res.ok) return;
+    const buf = await res.arrayBuffer();
+    let kw='', meta='Repository';
+    const lm = res.headers.get('Last-Modified');
+    if (lm) {
+      const d = new Date(lm);
+      const dd=String(d.getDate()).padStart(2,'0'), mm=String(d.getMonth()+1).padStart(2,'0');
+      const tmp=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+      tmp.setUTCDate(tmp.getUTCDate()+4-(tmp.getUTCDay()||7));
+      const w=Math.ceil((((tmp-new Date(Date.UTC(tmp.getUTCFullYear(),0,1)))/86400000)+1)/7);
+      kw=`KW ${w} · ${dd}.${mm}.${d.getFullYear()}`;
+      meta=`Stand ${dd}.${mm}.${d.getFullYear()}`;
+    }
+    loadRs(buf, kw, meta);
+  } catch(e){}
+})();
+
+// ── CAMERA ───────────────────────────────────────────────────────────────────
+let stream = null;
+let decodeInterval = null;
+let lastCode = '';
+let lastTime = 0;
+const video = document.getElementById('video');
+const canvas = document.createElement('canvas');
+const ctx = canvas.getContext('2d');
+const hints = new Map();
+hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.CODE_128]);
+const reader = new ZXing.MultiFormatReader();
+reader.setHints(hints);
+
+async function toggleCam() {
+  if (stream) { stopCam(); return; }
+
+  const btn = document.getElementById('btnCam');
+  const st  = document.getElementById('camSt');
+  btn.textContent = '⏹ Stopp';
+  btn.classList.add('stop');
+  st.textContent = 'Kamera wird gestartet…';
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal:'environment' }, width:{ideal:1280}, height:{ideal:720} },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+    st.textContent = 'Scanbereit';
+    // Pre-warm audio on camera start (user gesture active here)
+    try { const a = new Audio(_beepSrc); a.volume = 0; a.play().then(() => a.pause()).catch(()=>{}); } catch(e){}
+    startDecode();
+  } catch(e) {
+    st.textContent = 'Fehler: ' + e.message;
+    stopCam();
+  }
+}
+
+function stopCam() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  if (decodeInterval) { clearInterval(decodeInterval); decodeInterval = null; }
+  video.srcObject = null;
+  const btn = document.getElementById('btnCam');
+  btn.textContent = '▶ Kamera starten';
+  btn.classList.remove('stop');
+  document.getElementById('camSt').textContent = 'Gestoppt';
+}
+
+function startDecode() {
+  decodeInterval = setInterval(() => {
+    if (!video.videoWidth) return;
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    try {
+      const lum = ZXing.HTMLCanvasElementLuminanceSource
+        ? new ZXing.HTMLCanvasElementLuminanceSource(canvas)
+        : null;
+      if (!lum) { fallbackDecode(); return; }
+      const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(lum));
+      const result = reader.decode(bmp);
+      if (result) onCode(result.getText());
+    } catch(e) { /* no code in frame */ }
+  }, 200);
+}
+
+// Fallback: use BrowserMultiFormatReader on canvas dataUrl
+let fallbackReader = null;
+function fallbackDecode() {
+  if (!fallbackReader) {
+    fallbackReader = new ZXing.BrowserMultiFormatReader();
+  }
+  const img = new Image();
+  img.onload = () => {
+    try {
+      fallbackReader.decodeFromImageElement(img).then(r => {
+        if (r) onCode(r.getText());
+      }).catch(()=>{});
+    } catch(e){}
+  };
+  img.src = canvas.toDataURL('image/jpeg', 0.8);
+}
+
+// Beep: embedded WAV base64 – works everywhere
+const _beepSrc = 'data:audio/wav;base64,UklGRrQbAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YZAbAAAAAAgAIABIAH8AwwATAWsBygEuApMC9gJUA6sD9wM1BGQEfwSGBHUETQQMBLEDPQOvAgoCTgF9AJv/qf6r/ab8m/uS+oz5kPii98b2AfZX9cz0ZPQh9Aj0GfRX9ML0W/Uh9hP3MPh0+d36ZvwL/sj/lAFtA0oFJgf4CLsKZwz2DWAPoBCwEYsSKxOOE68TjRMnE3oSiRFVEOAOLQ1CCyMJ1gZjBNEBKv90/Lr5BPdd9M7xYe8e7Q/rPOmt52jmc+XU5I/kpeQa5ezlHOem6IjqvOw97wPyBvU9+J37Hf+vAkoG4AllDcwQChQSF9kZVRx8HkUgqCGfIiUjNyPRIvQhoSDbHqUcBRoDF6gT/Q8ODOgHlwMr/6/6NvbN8YPtaOmL5fnhwN7r24bZmtcv1k3V99Qx1fzVVtc/2bDbo94Q4uzlLerF7qbzv/gB/lkDtwgJDjsTPRj9HGohcyULKSMssS6pMAQyujLIMiwy5jD4LmcsOil6JTEhbhw+F7IR2wvNBZ3/XPkh8wDtD+dj4Q7cJNe20tTOjsvvyALHz8VcxazFwcaYyC3Lec5z0hDXQdz14Rzoou5x9XP8kQO0CsQRqRhLH5QlbSvCMH81lTnzPIw/V0FKQmJCnUH6P309LToUNj0xtyuTJeQewBc9EHUIgAB5+HvwoOgD4b7Z6tKfzPPG+8HIvWm67bddtsC1GrZst7K56bwFwfzFvss60lzZDOEy6bPxdPpXA0EMEhWtHfQlzC0aNcM7sUHORghLT06WUNRRAlIgUSxPLUwrSDBDTD2RNhUv7iY4Hg0VjQvVAQn4Re6s5F7be9Ihym3CertgtTWwDKz0qPqmJqZ9pv+nqap0rlWzPrkdwNzHYtCV2Vbjhu0E+KwCXA3xF0UiOCymNW8+dkadTc1T7ljuXL5fU2GmYbNgfF4HW11WjFCmScBB8zhbLxglShoUD50DCfh/7CXhItaby7TBj7hLsAap2KLZnRmaqZeRlteWfJh9m9GfbKU8rC20Jb0Jx7jREN3r6CP1jwEGDmAaciYUMh49a0fXUENZj2CjZmlrzm7HcEpxVHDnbQhqw2QnXkhWQE0sQyo4YCzzHwwT1QV8+CrrDd5R0SHFprkHr2ql75yzldGPXotriAKHK4fniDGMApFKl/ee8KcaslO9d8lf1uLj0fEAADcOPxzqKQk3cUP5TntZ1GLkapFxxXZueoF89nzLewZ5rnTTbodn5F4FVQxKHT5fMf4jJBYCCMX5neu43UXQccNlt0usSKJ7mQOS+Ytwh3eEGYNagzmFsIizjTKUGJxJpaevEbtfx2rUBeIE8Dn+cgyCGjsobjXwQZZNO1i6YfVp0HA0dg96VXz+fAd8dXlOdaNvhGgKYFFWeUunPwEzsSXlF8kJjftf7W/f7NEBxdq4oK14o4Ka35KljOuHwIQugzuD54QriP6MTpMImxGkTK6WucrFwNJM4EHucfysCsQYiibQM2pALkz1VptgAGkIcJx1qnkjfP98PXzdeel1bXB7aSthmVfjTC1BoDRjJ6MZjwtV/SLvKOGV05TGU7r5rq2kj5vAk1iNbYgPhUqDI4ObhK2HToxwkv6Z36L1rB+4OMQY0ZPefuyp+uUIBRfYJDAy4j7DSqxVeF8GaDtv/3Q+eep7+nxsfD96fXYxcW1qSGLbWEhOsUI8NhMpYRtUDR3/5/Dj4kDVK8jPu1aw5qWhnKaUEI71iGWFbIMRg1WENIeli5eR+ZixoaOrrLaqwnPP3dy86uL4HgdEFSMjjTBWPVRJXVRPXgdnaW5bdMx4q3vvfJR8m3oLd/BxWmtfYxpaqk8xRNU3wCodHRkP4wCs8p/k7dbEyU+9uLElp7idk5XPjoOJwYWUgwaDFoTChgGLxZD6l4igVKo9tR7B0M0o2/voG/dXBYITbSHoLsg74UcLUyFdAmaQbbJzU3hle918tnzxepN3qHJAbHFkU1sHUa1FbDlrLNge3hCrAnH0Xead2GDL074ds2eo1Z6FlpOPF4ojhsODAYPdg1aGZIr4jwCXZZ8LqdKzlr8wzHbZPOdU9Y8DvxG0H0AtNjpqRrRR71v4ZLJsAnPVdxl7xXzSfEB7FXhbcyFtfmWIXGBSJkf/OhQukSChEnMEN/Yb6E/a/8xZwIe0r6n2n3yXXZCyiouG+YMCg6uD8YXMiTCPC5ZGnsWnarIQvpLKxdd+5Y7zxwH8D/sdliuhOO9EWVC3WuhjzmtNclB3x3qmfOd8iXuQeAd0/W2FZrhdtVObSI88uy9IImMUOwb+99zpAtyhzuPB9LX7qhyheZgtkVKL+oY1hAqDf4OShTuJb44clSydhaYHsY+898gW1sHjyfEAADcOPxzqKQk3cUP5TntZ1GLkapFxxXZueoF89nzLewZ5rnTTbodn5F4FVQxKHT5fMf4jJBYCCMX5neu43UXQccNlt0usSKJ7mQOS+Ytwh3eEGYNagzmFsIizjTKUGJxJpaevEbtfx2rUBeIE8Dn+cgyCGjsobjXwQZZNO1i6YfVp0HA0dg96VXz+fAd8dXlOdaNvhGgKYFFWeUunPwEzsSXlF8kJjftf7W/f7NEBxdq4oK14o4Ka35KljOuHwIQugzuD54QriP6MTpMImxGkTK6WucrFwNJM4EHucfysCsQYiibQM2pALkz1VptgAGkIcJx1qnkjfP98PXzdeel1bXB7aSthmVfjTC1BoDRjJ6MZjwtV/SLvKOGV05TGU7r5rq2kj5vAk1iNbYgPhUqDI4ObhK2HToxwkv6Z36L1rB+4OMQY0ZPefuyp+uUIBRfYJDAy4j7DSqxVeF8GaDtv/3Q+eep7+nxsfD96fXYxcW1qSGLbWEhOsUI8NhMpYRtUDR3/5/Dj4kDVK8jPu1aw5qWhnKaUEI71iGWFbIMRg1WENIeli5eR+ZixoaOrrLaqwnPP3dy86uL4HgdEFSMjjTBWPVRJXVRPXgdnaW5bdMx4q3vvfJR8m3oLd/BxWmtfYxpaqk8xRNU3wCodHRkP4wCs8p/k7dbEyU+9uLElp7idk5XPjoOJwYWUgwaDFoTChgGLxZD6l4igVKo9tR7B0M0o2/voG/dXBYITbSHoLsg74UcLUyFdAmaQbbJzU3hle918tnzxepN3qHJAbHFkU1sHUa1FbDlrLNge3hCrAnH0Xead2GDL074ds2eo1Z6FlpOPF4ojhsODAYPdg1aGZIr4jwCXZZ8LqdKzlr8wzHbZPOdU9Y8DvxG0H0AtNjpqRrRR71v4ZLJsAnPVdxl7xXzSfEB7FXhbcyFtfmWIXGBSJkf/OhQukSChEnMEN/Yb6E/a/8xZwIe0r6n2n3yXXZCyiouG+YMCg6uD8YXMiTCPC5ZGnsWnarIQvpLKxdd+5Y7zxwH8D/sdliuhOO9EWVC3WuhjzmtNclB3x3qmfOd8iXuQeAd0/W2FZrhdtVObSI88uy9IImMUOwb+99zpAtyhzuPB9LX7qhyheZgtkVKL+oY1hAqDf4OShTuJb44clSydhaYHsY+898gW1sHjyfEAADcOPxzqKQk3cUP5TntZ1GLkapFxxXZueoF89nzLewZ5rnTTbodn5F4FVQxKHT5fMf4jJBYCCMX5neu43UXQccNlt0usSKJ7mQOS+Ytwh3eEGYNagzmFsIizjTKUGJxJpaevEbtfx2rUBeIE8Dn+cgyCGjsobjXwQZZNO1i6YfVp0HA0dg96VXz+fAd8dXlOdaNvhGgKYFFWeUunPwEzsSXlF8kJjftf7W/f7NEBxdq4oK14o4Ka35KljOuHwIQugzuD54QriP6MTpMImxGkTK6WucrFwNJM4EHucfysCsQYiibQM2pALkz1VptgAGkIcJx1qnkjfP98PXzdeel1bXB7aSthmVfjTC1BoDRjJ6MZjwtV/SLvKOGV05TGU7r5rq2kj5vAk1iNbYgPhUqDI4ObhK2HToxwkv6Z36L1rB+4OMQY0ZPefuyp+uUIBRfYJDAy4j7DSqxVeF8GaDtv/3Q+eep7+nxsfD96fXYxcW1qSGLbWEhOsUI8NhMpYRtUDR3/5/Dj4kDVK8jPu1aw5qWhnKaUEI71iGWFbIMRg1WENIeli5eR+ZixoaOrrLaqwnPP3dy86uL4HgdEFSMjjTBWPVRJXVRPXgdnaW5bdMx4q3vvfJR8m3oLd/BxWmtfYxpaqk8xRNU3wCodHRkP4wCs8p/k7dbEyU+9uLElp7idk5XPjoOJwYWUgwaDFoTChgGLxZD6l4igVKo9tR7B0M0o2/voG/dXBYITbSHoLsg74UcLUyFdAmaQbbJzU3hle918tnzxepN3qHJAbHFkU1sHUa1FbDlrLNge3hCrAnH0Xead2GDL074ds2eo1Z6FlpOPF4ojhsODAYPdg1aGZIr4jwCXZZ8LqdKzlr8wzHbZPOdU9Y8DvxG0H0AtNjpqRrRR71v4ZLJsAnPVdxl7xXzSfEB7FXhbcyFtfmWIXGBSJkf/OhQukSChEnMEN/Yb6E/a/8xZwIe0r6n2n3yXXZCyiouG+YMCg6uD8YXMiTCPC5ZGnsWnarIQvpLKxdd+5Y7zxwH8D/sdliuhOO9EWVC3WuhjzmtNclB3x3qmfOd8iXuQeAd0/W2FZrhdtVObSI88uy9IImMUOwb+99zpAtyhzuPB9LX7qhyheZgtkVKL+oY1hAqDf4OShTuJb44clSydhaYHsY+898gW1sHjyfEAADcOPxzqKQk3cUP5TntZ1GLkapFxxXZueoF89nzLewZ5rnTTbodn5F4FVQxKHT5fMf4jJBYCCMX5neu43UXQccNlt0usSKJ7mQOS+Ytwh3eEGYNagzmFsIizjTKUGJxJpaevEbtfx2rUBeIE8Dn+cgyCGjsobjXwQZZNO1i6YfVp0HA0dg96VXz+fAd8dXlOdaNvhGgKYFFWeUunPwEzsSXlF8kJjftf7W/f7NEBxdq4oK14o4Ka35KljOuHwIQugzuD54QriP6MTpMImxGkTK6WucrFwNJM4EHucfysCsQYiibQM2pALkz1VptgAGkIcJx1qnkjfP98PXzdeel1bXB7aSthmVfjTC1BoDRjJ6MZjwtV/SLvKOGV05TGU7r5rq2kj5vAk1iNbYgPhUqDI4ObhK2HToxwkv6Z36L1rB+4OMQY0ZPefuyp+uUIBRfYJDAy4j7DSqxVeF8GaDtv/3Q+eep7+nxsfD96fXYxcW1qSGLbWEhOsUI8NhMpYRtUDR3/5/Dj4kDVK8jPu1aw5qWhnKaUEI71iGWFbIMRg1WENIeli5eR+ZixoaOrrLaqwnPP3dy86uL4HgdEFSMjjTBWPVRJXVRPXgdnaW5bdMx4q3vvfJR8m3oLd/BxWmtfYxpaqk8xRNU3wCodHRkP4wCs8p/k7dbEyU+9uLElp7idk5XPjoOJwYWUgwaDFoTChgGLxZD6l4igVKo9tR7B0M0o2/voG/dXBYITbSHoLsg74UcLUyFdAmaQbbJzU3hle918tnzxepN3qHJAbHFkU1sHUa1FbDlrLNge3hCrAnH0Xead2GDL074ds2eo1Z6FlpOPF4ojhsODAYPdg1aGZIr4jwCXZZ8LqdKzlr8wzHbZPOdU9Y8DvxG0H0AtNjpqRrRR71v4ZLJsAnPVdxl7xXzSfEB7FXhbcyFtfmWIXGBSJkf/OhQukSChEnMEN/Yb6E/a/8xZwIe0r6n2n3yXXZCyiouG+YMCg6uD8YXMiTCPC5ZGnsWnarIQvpLKxdd+5Y7zxwH8D/sdliuhOO9EWVC3WuhjzmtNclB3x3qmfOd8iXuQeAd0/W2FZrhdtVObSI88uy9IImMUOwb+99zpAtyhzuPB9LX7qhyheZgtkVKL+oY1hAqDf4OShTuJb44clSydhaYHsY+898gW1sHjyfEAADcOPxzqKQk3cUP5TntZ1GLkapFxxXZueoF89nzLewZ5rnTTbodn5F4FVQxKHT5fMf4jJBYCCMX5neu43UXQccNlt0usSKJ7mQOS+Ytwh3eEGYNagzmFsIizjTKUGJxJpaevEbtfx2rUBeIE8Dn+cgyCGjsobjXwQZZNO1i6YfVp0HA0dg96VXz+fAd8dXlOdaNvhGgKYFFWeUunPwEzsSXlF8kJjftf7W/f7NEBxdq4oK14o4Ka35KljOuHwIQugzuD54QriP6MTpMImxGkTK6WucrFwNJM4EHucfysCsQYiibQM2pALkz1VptgAGkIcJx1qnkjfP98PXzdeel1bXB7aSthmVfjTC1BoDRjJ6MZjwtV/SLvKOGV05TGU7r5rq2kj5vAk1iNbYgPhUqDI4ObhK2HToxwkv6Z36L1rB+4OMQY0ZPefuyp+uUIBRfYJDAy4j7DSqxVeF8GaDtv/3Q+eep7+nxsfD96fXYxcW1qSGLbWEhOsUI8NhMpYRtUDR3/5/Dj4kDVK8jPu1aw5qWhnKaUEI71iGWFbIMRg1WENIeli5eR+ZixoaOrrLaqwnPP3dy86uL4HgdEFSMjjTBWPVRJXVRPXgdnaW5bdMx4q3vvfJR8m3oLd/BxWmtfYxpaqk8xRNU3wCodHRkP4wCs8p/k7dbEyU+9uLElp7idk5XPjoOJwYWUgwaDFoTChgGLxZD6l4igVKo9tR7B0M0o2/voG/dXBYITbSHoLsg74UcLUyFdAmaQbbJzU3hle918tnzxepN3qHJAbHFkU1sHUa1FbDlrLNge3hCrAnH0Xead2GDL074ds2eo1Z6FlpOPF4ojhsODAYPdg1aGZIr4jwCXZZ8LqdKzlr8wzHbZPOdU9Y8DvxG0H0AtNjpqRrRR71v4ZLJsAnPVdxl7xXzSfEB7FXhbcyFtfmWIXGBSJkf/OhQukSChEnMEN/Yb6E/a/8xZwIe0r6n2n3yXXZCyiouG+YMCg6uD8YXMiTCPC5ZGnsWnarIQvpLKxdd+5Y7zxwH8D/sdliuhOO9EWVC3WuhjzmtNclB3x3qmfOd8iXuQeAd0/W2FZrhdtVObSI88uy9IImMUOwb+99zpAtyhzuPB9LX7qhyheZgtkVKL+oY1hAqDf4OShTuJb44clSydhaYHsY+898gW1sHjyfEAADcOPxzqKQk3cUP5TntZ1GLkapFxxXZueoF89nzLewZ5rnTTbodn5F4FVQxKHT5fMf4jJBYCCMX5neu43UXQccNlt0usSKJ7mQOS+Ytwh3eEGYNagzmFsIizjTKUGJxJpaevEbtfx2rUBeIE8Dn+cgyCGjsobjXwQZZNO1i6YfVp0HA0dg96VXz+fAd8dXlOdaNvhGgKYFFWeUunPwEzsSXlF8kJjftf7W/f7NEBxdq4oK14o4Ka35KljOuHwIQugzuD54QriP6MTpMImxGkTK6WucrFwNJM4EHucfysCsQYiibQM2pALkz1VptgAGkIcJx1qnkjfP98PXzdeel1bXB7aSthmVfjTC1BoDRjJ6MZjwtV/SLvKOGV05TGU7r5rq2kj5vAk1iNbYgPhUqDI4ObhK2HToxwkv6Z36L1rB+4OMQY0ZPefuyp+uUIBRfYJDAy4j7DSqxVeF8GaDtv/3Q+eep7+nxsfD96fXYxcW1qSGLbWEhOsUI8NhMpYRtUDR3/5/Dj4kDVK8jPu1aw5qWhnKaUEI71iGWFbIMRg1WENIeli5eR+ZixoaOrrLaqwnPP3dy86uL4HgdEFSMjjTBWPVRJXVRPXgdnaW5bdMx4q3vvfJR8m3oLd/BxWmtfYxpaqk8xRNU3wCodHRkP4wCs8p/k7dbEyU+9uLElp7idk5XPjoOJwYWUgwaDFoTChgGLxZD6l4igVKo9tR7B0M0o2/voG/dXBYITbSHoLsg74UcLUyFdAmaQbbJzU3hle918tnzxepN3qHJAbHFkU1sHUa1FbDlrLNge3hCrAnH0Xead2GDL074ds2eo1Z6FlpOPF4ojhsODAYPdg1aGZIr4jwCXZZ8LqdKzlr8wzHbZPOdU9Y8DvxG0H0AtNjpqRrRR71v4ZLJsAnPVdxl7xXzSfEB7FXhbcyFtfmWIXGBSJkf/OhQukSChEnMEN/Yb6E/a/8xZwIe0r6n2n3yXXZCyiouG+YMCg6uD8YXMiTCPC5ZGnsWnarIQvpLKxdd+5Y7zxwH8D/sdliuhOO9EWVC3WuhjzmtNclB3x3qmfOd8iXuQeAd0/W2FZrhdtVObSI88uy9IImMUOwb+99zpAtyhzuPB9LX7qhyheZgtkVKL+oY1hAqDf4OShTuJb44clSydhaYHsY+898gW1sHjyfEAAC8OHhyhKYk2rULmTRBYCWG2aP5uz3MZd9V4/niVd6J0L3BNahFjllr5UFpG3zqvLvMh1hSEByv69OwN4KDT1sfUvMCyuKnZoT2b+JUZkqyPto45jzKRl5RdmXGfvaYpr5W44sLszY7ZoOX68XH+3QoVF/AiSC73ONtC00vEU5RaL2CDZIRnKWlvaVdo52UnYihd+la1T3FHTD5lNN4p2x6BE/cHY/zs8Lbl6Nql0A3HQL5atnSvo6n5pIShTZ9anq2eQqASoxKnM6xjsoq5kcFaysjTu90P6KTyVP38B3oSqhxrJp4vJDjjP8JGq0yMUVdVAViDWdpZBlkMV/RTy0+gSoZEkz3fNYUtoiRUG7sR9wcr/nP08+rI4RLZ69BvybTC0LzVt9Oz1LDgrv6tLK5qr7Gx+LQyuU++PcTmyjTSDNpT4u7qv/Op/IwFTQ7OFvQepCbGLUI0BDr7PhdDTkaUSOZJQEqjSRNIl0U4QgU+DTlhMxYtQib9HmAXhQ+HB4D/i/fD70DoHOFt2knUw87sydPFg8IGwGO+nr22vam+dMANw2vGgco+z5PUbNq14FfnPO5M9W/8jQOPCl4R5BcLHr8j8CiNLYcx0zRoNz85VDqkOjE6/jgRN3I0LDFKLdwo8iOdHvEYABPfDKQGYwAz+iX0Tu7C6JLjz96G2sbWmdMI0RrP1M04zUbN/M1Xz0/R3dP11o3alt4D48Pnxez38Un3p/z/AUEHWgw7EdMVFBrwHV0hUCTBJqooBCrPKgkrsyrRKWYoeiYVJEAhBx51GpgWfRIzDsoJUQXVAGn8GPjy8wPwWOz96PvlW+Ml4V/fDN4v3cnc29xh3Vjeu9+E4avjJ+bu6PbrNO+b8iD2tvlR/eMAYwTDB/oK/Q3DEEQTeBVaF+QYFBrmGlsbcRssG40amBlTGMQW8RTiEp8QMg6jC/wIRgaMA9YAL/6d+yr53fa+9NPyIPGr73fuhu3Z7HPsUexy7NXsde1Q7mDvoPAK8pnzRfUI99r4tvqT/Gz+OAD1AZoDIwWMBtAH7QjfCaUKPgupC+cL+AvfC5wLNAupCv8JOgleCHAHdAZuBWUEWgNVAlcBZQCD/7L+9v1R/cP8T/z0+7P7i/t6+4H7nPvL+wn8Vfys/Ar9bf3S/Tb+lf7t/j3/gf+4/+D/+P8=';
+
+function vibrate(pattern) {
+  try { if (navigator.vibrate) navigator.vibrate(pattern); } catch(e){}
+  try {
+    const a = new Audio(_beepSrc);
+    a.volume = 0.6;
+    a.play().catch(()=>{});
+  } catch(e){}
+}
+
+function onCode(raw) {
+  const now = Date.now();
+  const code = raw.replace(/\D/g,'');
+  if (code === lastCode && now - lastTime < 3000) return;
+  lastCode = code; lastTime = now;
+  document.getElementById('camSt').textContent = `✓ ${code}`;
+  handleScan(code);
+}
+
+// ── MATCH ────────────────────────────────────────────────────────────────────
+const ST = {
+  nors:  {bg:'#fff4e5',color:'#b35c00',border:'#E67E00', icon:'⚠️',label:'RS.XLSX NICHT GELADEN'},
+  hit:   {bg:'#fdecea',color:'#b0001f',border:'#E8002D', icon:'🔴',label:'RÜCKSTAND'},
+  avail: {bg:'#e5f5fd',color:'#0077b8',border:'#009FE3', icon:'🔵',label:'WIEDER VERFÜGBAR'},
+  ok:    {bg:'#e8f7ef',color:'#006b28',border:'#00963A', icon:'✅',label:'KEIN RÜCKSTAND'},
+};
+
+function handleScan(gtin) {
+  if (!rsData) { showResult('nors',gtin,null); addLog(gtin,{status:'nors'}); vibrate(60); return; }
+  const found = rsData.get(gtin)||null;
+  if (!found)  { showResult('ok',gtin,null);   addLog(gtin,{status:'ok'});   vibrate(60); return; }
+  const imRS = found.kz.toLowerCase().includes('rückstand') && !found.kz.toLowerCase().includes('wieder');
+  const s = imRS ? 'hit' : 'avail';
+  showResult(s, gtin, found);
+  addLog(gtin, {status:s, row:found});
+  vibrate(60);
+}
+
+function showResult(status, gtin, row) {
+  const s = ST[status];
+  const detail = row
+    ? `Artikel_Nr: ${row.artikelNr} · ${row.kz}`
+    : status==='nors' ? 'Bitte erst rs.xlsx laden' : 'Nicht in Rückstandsliste';
+
+  const banner = document.getElementById('resBanner');
+  banner.style.cssText=`background:${s.bg};color:${s.color};border-bottom:1px solid ${s.border}`;
+  banner.innerHTML=`<span class="res-icon">${s.icon}</span><div>${s.label}<div class="res-sub">${detail}</div></div>`;
+
+  const fields = document.getElementById('resFields');
+  fields.innerHTML='';
+  addF(fields,'GTIN',gtin,'big');
+  if (row) {
+    const det = document.createElement('details');
+    det.style.cssText='margin-top:4px;background:var(--s2);border:1px solid var(--b);border-radius:4px';
+    det.innerHTML=`<summary style="font-family:'Space Mono',monospace;font-size:9px;color:var(--mu);padding:7px 10px;cursor:pointer;letter-spacing:.08em;text-transform:uppercase">Referenzdaten</summary>
+      <div style="padding:6px 10px 10px;display:flex;flex-direction:column;gap:5px">
+        <div class="rf"><span class="rf-l">Artikel_Nr</span><span class="rf-v mono">${row.artikelNr}</span></div>
+        <div class="rf"><span class="rf-l">Artikelstatus</span><span class="rf-v mono">${row.status}</span></div>
+        <div class="rf"><span class="rf-l">Rückstandskz</span><span class="rf-v">${row.kz}</span></div>
+      </div>`;
+    fields.appendChild(det);
+  }
+  // Show popup – manual dismiss only
+  const popup = document.getElementById('scan-popup');
+  popup.classList.add('show');
+
+  // screen flash
+  const fc={hit:'rgba(232,0,45,.15)',avail:'rgba(0,159,227,.12)',ok:'rgba(0,150,58,.12)',nors:'rgba(230,126,0,.1)'};
+  const fl=document.createElement('div');
+  fl.style.cssText=`position:fixed;inset:0;background:${fc[status]};z-index:200;pointer-events:none;animation:ff .4s ease forwards`;
+  document.body.appendChild(fl);
+  setTimeout(()=>fl.remove(),400);
+}
+
+function addF(parent,lbl,val,cls){
+  if(!val)return;
+  const d=document.createElement('div'); d.className='rf';
+  d.innerHTML=`<span class="rf-l">${lbl}</span><span class="rf-v ${cls}">${val}</span>`;
+  parent.appendChild(d);
+}
+
+// ── LOG ───────────────────────────────────────────────────────────────────────
+let sessionLog=[], scanCounter=0;
+
+function addLog(gtin,match){
+  // Deduplicate: skip if same GTIN already in log
+  if (sessionLog.some(e => e.gtin === gtin)) {
+    document.getElementById('camSt').textContent = `↻ ${gtin} (bereits erfasst)`;
+    // duplicate – no beep
+    return;
+  }
+  scanCounter++;
+  vibrate(60);
+  sessionLog.unshift({id:scanCounter,time:new Date().toLocaleTimeString('de-DE'),gtin,match});
+  renderLog(); updateStats();
+}
+
+function renderLog(){
+  document.getElementById('logCount').textContent=`${sessionLog.length} Eintr${sessionLog.length===1?'ag':'äge'}`;
+  const tb=document.getElementById('logBody');
+  if(!sessionLog.length){tb.innerHTML='<tr><td colspan="8" class="empty-log">Noch keine Scans</td></tr>';return;}
+  const lb={hit:'RÜCKSTAND',ok:'OK',avail:'VERFÜGBAR',nors:'KEIN RS'};
+  tb.innerHTML=sessionLog.map(e=>`<tr>
+    <td class="mono-sm">${e.id}</td>
+    <td class="mono-sm">${e.time}</td>
+    <td class="mono-sm">${e.gtin}</td>
+    <td class="mono-sm">${e.match.row?e.match.row.artikelNr:'–'}</td>
+    <td><span class="tag ${e.match.status}">${lb[e.match.status]}</span></td>
+    <td class="mono-sm">${e.match.row?e.match.row.status:'–'}</td>
+    <td class="mono-sm" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.match.row?e.match.row.kz:'–'}</td>
+    <td><button class="del-btn" onclick="del(${e.id})">×</button></td>
+  </tr>`).join('');
+}
+
+function del(id){sessionLog=sessionLog.filter(e=>e.id!==id);renderLog();updateStats();}
+function clearLog(){if(!sessionLog.length||!confirm('Log leeren?'))return;sessionLog=[];renderLog();updateStats();}
+function updateStats(){
+  document.getElementById('hT').textContent=sessionLog.length;
+  document.getElementById('hH').textContent=sessionLog.filter(e=>e.match.status==='hit').length;
+  document.getElementById('hO').textContent=sessionLog.filter(e=>e.match.status==='ok'||e.match.status==='avail').length;
+}
+
+// ── EXPORT ───────────────────────────────────────────────────────────────────
+function exportCSV(){
+  if(!sessionLog.length){toast('Keine Einträge');return;}
+  const lb={hit:'JA',ok:'NEIN',avail:'WIEDER VERFÜGBAR',nors:'KEIN RS'};
+  const hdr=['Nr','Zeit','GTIN','Artikel_Nr','Rückstand','Art.Status','Kz'];
+  const rows=sessionLog.map(e=>[e.id,e.time,e.gtin,
+    e.match.row?e.match.row.artikelNr:'–',lb[e.match.status],
+    e.match.row?e.match.row.status:'–',e.match.row?e.match.row.kz:'–']);
+  const csv=[hdr,...rows].map(r=>r.map(c=>`"${c}"`).join(';')).join('\n');
+  const filename=`rueckstand-${stamp()}.csv`;
+  const file=new File([csv],filename,{type:'text/csv'});
+  // Try Web Share API (mobile – hands CSV to Mail, WhatsApp etc.)
+  if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file],title:'Budni Rückstand-Export',text:`Scan-Export ${stamp()}`})
+      .then(()=>toast('Geteilt ✓'))
+      .catch(e=>{ if(e.name!=='AbortError') mailFallback(csv,filename); });
+  } else {
+    // Fallback: download + open mail client
+    mailFallback(csv,filename);
+  }
+}
+function mailFallback(csv,filename){
+  dl(csv,filename,'text/csv');
+  const hit=sessionLog.filter(e=>e.match.status==='hit').length;
+  const subject=encodeURIComponent(`Budni Rückstand-Export ${stamp()}`);
+  const body=encodeURIComponent(`Hallo,\n\nbitte die angehängte CSV-Datei prüfen.\n\n${sessionLog.length} Scans · ${hit} Rückstände\n\nDatum: ${new Date().toLocaleDateString('de-DE')}`);
+  setTimeout(()=>{ window.location.href=`mailto:?subject=${subject}&body=${body}`; },400);
+  toast('CSV gespeichert · Mail geöffnet');
+}
+function exportJSON(){
+  if(!sessionLog.length){toast('Keine Einträge');return;}
+  dl(JSON.stringify(sessionLog.map(e=>({nr:e.id,zeit:e.time,gtin:e.gtin,
+    artikelNr:e.match.row?e.match.row.artikelNr:null,
+    rueckstand:e.match.status,status:e.match.row?e.match.row.status:null,
+    kz:e.match.row?e.match.row.kz:null})),null,2),`rueckstand-${stamp()}.json`,'application/json');
+  toast('JSON exportiert ✓');
+}
+function dl(c,f,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));a.download=f;a.click();}
+function stamp(){return new Date().toISOString().slice(0,10);}
+function toggleFs() {
+  const btn = document.getElementById('btnFs');
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    btn.textContent = '✕';
+    btn.title = 'Vollbild beenden';
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    btn.textContent = '⛶';
+    btn.title = 'Vollbild';
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('btnFs');
+  if (!document.fullscreenElement) { btn.textContent = '⛶'; btn.title = 'Vollbild'; }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  const btn = document.getElementById('btnFs');
+  if (!document.webkitFullscreenElement) { btn.textContent = '⛶'; btn.title = 'Vollbild'; }
+});
+
+function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
+</script>
+<div id="scan-popup">
+  <div id="resBanner" class="res-banner"></div>
+  <div class="res-fields" id="resFields"></div>
+  <div style="padding:10px;background:#fff;border-top:1px solid #D0DCF0;">
+    <button onclick="document.getElementById('scan-popup').classList.remove('show')"
+      style="width:100%;background:#003B6E;color:#fff;border:none;padding:11px;
+      font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+      border-radius:6px;cursor:pointer;letter-spacing:.06em;">OK</button>
+  </div>
+</div>
+</body>
+</html>
