@@ -80,7 +80,6 @@ input[type=file]{display:none}
 
 /* RESULT */
 #res-card{display:none;border:1px solid var(--b);border-radius:6px;overflow:hidden;background:var(--s)}
-#res-card.show{display:block}
 .res-banner{padding:14px 16px;display:flex;align-items:center;gap:12px;
   font-family:'Space Mono',monospace;font-size:12px;font-weight:700}
 .res-icon{font-size:22px}
@@ -131,6 +130,59 @@ tr:hover td{background:#1c1c1c}
   font-size:12px;font-weight:700;padding:10px 20px;border-radius:4px;z-index:999;pointer-events:none}
 
 @keyframes ff{0%{opacity:.5}100%{opacity:0}}
+
+/* ── SCAN POPUP ── */
+#scan-popup{
+  display:none;
+  position:fixed;
+  bottom:32px;
+  left:50%;
+  transform:translateX(-50%);
+  min-width:280px;
+  max-width:88vw;
+  border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.22);
+  z-index:9000;
+}
+#scan-popup.show{
+  display:block;
+  animation:popIn .22s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes popIn{
+  from{opacity:0;transform:translateX(-50%) translateY(20px)}
+  to{opacity:1;transform:translateX(-50%) translateY(0)}
+}
+#scan-popup .res-banner{
+  padding:16px 18px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  font-family:'Space Mono',monospace;
+  font-size:13px;
+  font-weight:700;
+}
+#scan-popup .res-icon{font-size:24px}
+#scan-popup .res-sub{font-size:10px;font-weight:400;margin-top:3px;opacity:.8}
+#scan-popup .res-fields{
+  padding:10px;
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  background:#fff;
+}
+#scan-popup .rf{
+  display:flex;gap:8px;align-items:baseline;
+  padding:7px 10px;background:#EEF3FA;
+  border-radius:4px;border:1px solid #D0DCF0;
+}
+#scan-popup .rf-l{
+  font-family:'Space Mono',monospace;font-size:9px;color:#7A90B0;
+  text-transform:uppercase;letter-spacing:.06em;min-width:96px;flex-shrink:0;
+}
+#scan-popup .rf-v{font-size:13px;font-weight:600;color:#1a1a2e}
+#scan-popup .rf-v.mono{font-family:'Space Mono',monospace;font-size:12px}
+#scan-popup .rf-v.big{font-family:'Space Mono',monospace;font-size:18px;color:#003B6E}
 </style>
 </head>
 <body>
