@@ -22,7 +22,7 @@ header{display:flex;align-items:center;gap:12px;padding:14px 20px;
 .logo{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
   color:#FFFFFF;letter-spacing:.1em}
 .logo span{color:rgba(255,255,255,.4)}
-.hstats{margin-left:auto;display:flex;gap:16px}
+.hstats{display:flex;gap:16px}
 .hs{font-family:'Space Mono',monospace;font-size:10px;text-align:right}
 .hs b{font-size:17px;display:block;line-height:1;color:#009FE3}
 
@@ -189,6 +189,10 @@ tr:hover td{background:#1c1c1c}
 
 <header>
   <div class="logo">Budni <span>/</span> Rückstand-Check</div>
+  <button id="btnFs" onclick="toggleFs()" title="Vollbild"
+    style="margin-left:auto;margin-right:12px;background:none;border:1px solid rgba(255,255,255,.25);
+    color:rgba(255,255,255,.8);font-size:15px;cursor:pointer;padding:5px 9px;
+    border-radius:4px;line-height:1;flex-shrink:0;">⛶</button>
   <div class="hstats">
     <div class="hs"><b id="hT">0</b>GESCANNT</div>
     <div class="hs"><b id="hH" style="color:#ff7a8a">0</b>RÜCKSTAND</div>
@@ -534,6 +538,30 @@ function exportJSON(){
 }
 function dl(c,f,t){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([c],{type:t}));a.download=f;a.click();}
 function stamp(){return new Date().toISOString().slice(0,10);}
+function toggleFs() {
+  const btn = document.getElementById('btnFs');
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    btn.textContent = '✕';
+    btn.title = 'Vollbild beenden';
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    btn.textContent = '⛶';
+    btn.title = 'Vollbild';
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('btnFs');
+  if (!document.fullscreenElement) { btn.textContent = '⛶'; btn.title = 'Vollbild'; }
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  const btn = document.getElementById('btnFs');
+  if (!document.webkitFullscreenElement) { btn.textContent = '⛶'; btn.title = 'Vollbild'; }
+});
+
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
 </script>
 <div id="scan-popup">
