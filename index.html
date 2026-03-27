@@ -5,16 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>EAN Scanner</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
-    --bg: #0a0a0a;
-    --surface: #141414;
-    --border: #2a2a2a;
-    --accent: #00e5a0;
-    --accent-dim: rgba(0, 229, 160, 0.12);
-    --text: #f0f0f0;
-    --text-muted: #666;
-    --red: #ff4060;
+    --bg: #f4f1eb;
+    --surface: #ffffff;
+    --border: #ddd8ce;
+    --accent: #1a1a2e;
+    --accent2: #c8392b;
+    --accent-light: rgba(26,26,46,0.07);
+    --text: #1a1a2e;
+    --text-muted: #8a8478;
+    --ok: #2a7d4f;
+    --ok-bg: #e8f5ee;
+    --warn: #c8392b;
+    --warn-bg: #fdecea;
+    --font: 'Georgia', 'Times New Roman', serif;
     --font-mono: 'Courier New', monospace;
   }
 
@@ -23,421 +29,301 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: var(--font-mono);
+    font-family: var(--font);
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
   }
 
+  /* ── HEADER ── */
   header {
-    padding: 16px 20px 12px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--surface);
-  }
-
-  .logo {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-  }
-
-  .logo span {
-    display: block;
-    height: 24px;
     background: var(--accent);
-    border-radius: 1px;
+    color: #f4f1eb;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
   }
 
-  .logo span:nth-child(1) { width: 3px; }
-  .logo span:nth-child(2) { width: 1px; }
-  .logo span:nth-child(3) { width: 4px; }
-  .logo span:nth-child(4) { width: 2px; }
-  .logo span:nth-child(5) { width: 3px; }
-  .logo span:nth-child(6) { width: 1px; }
-  .logo span:nth-child(7) { width: 2px; }
-
-  header h1 {
-    font-size: 13px;
+  .header-left h1 {
+    font-size: 15px;
     font-weight: normal;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--accent);
   }
 
-  header small {
-    margin-left: auto;
+  .header-left small {
     font-size: 10px;
-    color: var(--text-muted);
-    letter-spacing: 0.1em;
+    opacity: 0.45;
+    letter-spacing: 0.12em;
+    font-family: var(--font-mono);
   }
 
-  /* Camera viewport */
+  #db-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 2px;
+    padding: 4px 10px;
+    color: rgba(244,241,235,0.7);
+    transition: all 0.3s;
+  }
+
+  #db-badge.loaded {
+    background: rgba(42,125,79,0.3);
+    border-color: rgba(42,125,79,0.6);
+    color: #7de0a8;
+  }
+
+  #db-badge.error {
+    background: rgba(200,57,43,0.2);
+    border-color: rgba(200,57,43,0.4);
+    color: #f08070;
+  }
+
+  /* ── CAMERA ── */
   #scanner-wrap {
     position: relative;
     width: 100%;
     background: #000;
     overflow: hidden;
     flex-shrink: 0;
-    /* aspect ratio set by JS */
   }
 
-  #interactive {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    inset: 0;
-  }
-
-  #interactive video,
-  #interactive canvas {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover;
-    display: block;
-  }
-
+  #interactive { width: 100%; height: 100%; position: absolute; inset: 0; }
+  #interactive video, #interactive canvas { width: 100% !important; height: 100% !important; object-fit: cover; display: block; }
   #interactive canvas.drawingBuffer { display: none; }
 
-  /* Scan overlay */
-  .scan-overlay {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 10;
-  }
+  .scan-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
 
-  /* Corner brackets */
   .scan-frame {
     position: absolute;
-    top: 50%;
-    left: 50%;
+    top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    width: 75%;
-    height: 80px;
+    width: 78%; height: 80px;
   }
 
-  .scan-frame::before,
-  .scan-frame::after,
-  .scan-frame .c3,
-  .scan-frame .c4 {
-    content: '';
-    position: absolute;
-    width: 20px;
-    height: 20px;
-    border-color: var(--accent);
-    border-style: solid;
+  .scan-frame::before, .scan-frame::after, .scan-frame .c3, .scan-frame .c4 {
+    content: ''; position: absolute; width: 22px; height: 22px;
+    border-color: #f4f1eb; border-style: solid;
   }
+  .scan-frame::before { top:0; left:0; border-width: 2px 0 0 2px; }
+  .scan-frame::after  { top:0; right:0; border-width: 2px 2px 0 0; }
+  .scan-frame .c3 { bottom:0; left:0; border-width: 0 0 2px 2px; }
+  .scan-frame .c4 { bottom:0; right:0; border-width: 0 2px 2px 0; }
 
-  .scan-frame::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
-  .scan-frame::after  { top: 0; right: 0; border-width: 2px 2px 0 0; }
-  .scan-frame .c3     { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
-  .scan-frame .c4     { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
-
-  /* Scanning line */
   .scan-line {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 75%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    animation: scanMove 2s ease-in-out infinite;
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, calc(-50% - 28px));
+    width: 78%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+    animation: scanMove 1.8s ease-in-out infinite;
   }
-
   @keyframes scanMove {
-    0%, 100% { transform: translate(-50%, calc(-50% - 30px)); opacity: 0.6; }
-    50% { transform: translate(-50%, calc(-50% + 30px)); opacity: 1; }
+    0%,100% { transform: translate(-50%, calc(-50% - 28px)); opacity: 0.5; }
+    50%      { transform: translate(-50%, calc(-50% + 28px)); opacity: 1; }
   }
 
-  .scan-line.paused { animation-play-state: paused; }
+  .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; z-index: 20; transition: opacity 0.04s; }
+  .flash.active { opacity: 0.35; }
 
-  /* Flash on success */
-  .flash {
-    position: absolute;
-    inset: 0;
-    background: var(--accent);
-    opacity: 0;
-    pointer-events: none;
-    z-index: 20;
-    transition: opacity 0.05s;
-  }
-
-  .flash.active { opacity: 0.25; }
-
-  /* Status bar */
+  /* ── STATUS ── */
   #status-bar {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 8px 20px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    min-height: 38px;
+    padding: 7px 16px;
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.1em; min-height: 34px;
   }
 
   #status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    flex-shrink: 0;
-    transition: background 0.3s;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-muted); flex-shrink: 0; transition: background 0.3s;
   }
-
-  #status-dot.active { background: var(--accent); animation: pulse 1.2s infinite; }
-  #status-dot.error  { background: var(--red); animation: none; }
-  #status-dot.found  { background: var(--accent); animation: none; }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
+  #status-dot.active { background: var(--ok); animation: blink 1.4s infinite; }
+  #status-dot.error  { background: var(--warn); }
+  #status-dot.found  { background: var(--ok); animation: none; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
 
   #status-text { color: var(--text-muted); flex: 1; }
 
-  /* Controls */
+  /* ── CONTROLS ── */
   #controls {
-    padding: 12px 20px;
-    display: flex;
-    gap: 8px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
+    display: flex; gap: 8px; padding: 10px 16px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
   }
 
   button {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    padding: 8px 16px;
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    cursor: pointer;
-    background: transparent;
-    color: var(--text-muted);
-    transition: all 0.15s;
-    flex: 1;
+    font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.15em; text-transform: uppercase;
+    padding: 8px 12px; border: 1px solid var(--border);
+    border-radius: 2px; cursor: pointer;
+    background: transparent; color: var(--text-muted);
+    transition: all 0.15s; flex: 1;
   }
-
-  button:hover { border-color: var(--accent); color: var(--accent); }
-
-  button.primary {
-    background: var(--accent-dim);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
+  button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #f4f1eb; }
+  button.primary:hover { background: #2d2d4e; }
+  button.danger { border-color: #ddd; }
+  button.danger:hover { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
   button:disabled { opacity: 0.3; pointer-events: none; }
 
-  /* Results */
+  /* ── LAST SCAN ── */
+  #last-scan {
+    margin: 12px 16px 0;
+    border-radius: 3px;
+    padding: 10px 14px;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid;
+    animation: popIn 0.2s ease;
+  }
+  @keyframes popIn { from{transform:scale(0.97);opacity:0} to{transform:scale(1);opacity:1} }
+
+  #last-scan.known   { background: var(--ok-bg);   border-color: #a8d8be; }
+  #last-scan.unknown { background: var(--warn-bg);  border-color: #f0b8b2; }
+
+  .ls-icon { font-size: 22px; flex-shrink: 0; }
+  .ls-code { font-family: var(--font-mono); font-size: 15px; letter-spacing: 0.1em; }
+  .ls-name { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .ls-tag  { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.15em;
+             text-transform: uppercase; margin-left: auto; flex-shrink: 0; }
+  .known .ls-tag  { color: var(--ok); }
+  .unknown .ls-tag { color: var(--warn); }
+
+  /* ── RESULTS TABLE ── */
   #results-section {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px 20px;
+    flex: 1; overflow-y: auto; padding: 12px 16px 20px;
   }
 
   .section-header {
-    font-size: 10px;
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--text-muted);
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
   }
 
-  #clear-btn-small {
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    padding: 2px 8px;
-    flex: unset;
+  #scan-count { color: var(--accent); }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px; font-family: var(--font-mono);
   }
 
-  #results-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .result-item {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 2px;
-    padding: 10px 14px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    animation: slideIn 0.2s ease;
-    cursor: pointer;
-    transition: border-color 0.15s;
-  }
-
-  .result-item:hover { border-color: var(--accent); }
-  .result-item.new { border-color: var(--accent); }
-
-  @keyframes slideIn {
-    from { opacity: 0; transform: translateY(-6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .result-num {
-    font-size: 10px;
-    color: var(--text-muted);
-    min-width: 20px;
-  }
-
-  .result-code {
-    font-size: 16px;
-    letter-spacing: 0.12em;
-    flex: 1;
-    color: var(--text);
-  }
-
-  .result-meta {
-    text-align: right;
-  }
-
-  .result-type {
-    font-size: 9px;
-    letter-spacing: 0.2em;
-    color: var(--accent);
-    text-transform: uppercase;
-  }
-
-  .result-time {
-    font-size: 9px;
-    color: var(--text-muted);
-    margin-top: 2px;
-  }
-
-  .copy-hint {
-    font-size: 9px;
-    color: var(--text-muted);
-    letter-spacing: 0.1em;
-    text-align: center;
-    margin-top: 8px;
-    opacity: 0.6;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-muted);
-  }
-
-  .empty-state .big {
-    font-size: 40px;
-    margin-bottom: 12px;
-    opacity: 0.3;
-  }
-
-  .empty-state p {
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    line-height: 1.8;
-  }
-
-  /* Toast */
-  #toast {
-    position: fixed;
-    bottom: 24px;
-    left: 50%;
-    transform: translateX(-50%) translateY(20px);
-    background: var(--accent);
-    color: #000;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.15em;
-    padding: 8px 20px;
-    border-radius: 2px;
-    opacity: 0;
-    transition: all 0.25s;
-    pointer-events: none;
-    white-space: nowrap;
-    z-index: 100;
-  }
-
-  #toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-
-  /* Start screen */
-  #start-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px 20px;
-    text-align: center;
-    flex: 1;
-  }
-
-  .big-icon {
-    font-size: 60px;
-    margin-bottom: 24px;
-    opacity: 0.4;
-  }
-
-  #start-screen h2 {
-    font-size: 13px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 12px;
+  thead th {
+    text-align: left; font-size: 9px; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--text-muted);
+    padding: 0 8px 6px; border-bottom: 1px solid var(--border);
     font-weight: normal;
   }
 
-  #start-screen p {
-    font-size: 11px;
-    color: var(--text-muted);
-    line-height: 1.9;
-    letter-spacing: 0.05em;
-    max-width: 280px;
-    margin-bottom: 32px;
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+    animation: rowIn 0.2s ease;
+  }
+  @keyframes rowIn { from{opacity:0;transform:translateX(-4px)} to{opacity:1;transform:none} }
+
+  tbody tr:hover { background: var(--accent-light); }
+  tbody tr.unknown-row td { color: var(--warn); }
+  tbody tr.pending-row td { color: var(--text-muted); font-style: italic; }
+  .td-pending { color: var(--text-muted) !important; font-size: 10px; }
+
+  tbody td { padding: 8px; vertical-align: middle; }
+
+  td.td-num { color: var(--text-muted); font-size: 10px; width: 28px; }
+  td.td-ean { letter-spacing: 0.08em; }
+  td.td-name { color: var(--text-muted); }
+  td.td-status { width: 24px; text-align: center; font-size: 14px; }
+  td.td-time { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
+
+  .empty-state {
+    text-align: center; padding: 36px 20px; color: var(--text-muted);
+  }
+  .empty-state .em-icon { font-size: 36px; opacity: 0.25; margin-bottom: 10px; }
+  .empty-state p { font-size: 12px; line-height: 1.9; letter-spacing: 0.05em; font-family: var(--font-mono); }
+
+  /* ── EXPORT BAR ── */
+  #export-bar {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 10px 16px; display: none; gap: 8px;
+    position: sticky; bottom: 0;
   }
 
-  #start-btn {
-    font-size: 12px;
-    padding: 14px 40px;
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-dim);
-    flex: unset;
+  /* ── START SCREEN ── */
+  #start-screen {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 24px; text-align: center;
   }
+
+  .start-barcode {
+    font-size: 42px; letter-spacing: -2px; opacity: 0.15;
+    margin-bottom: 28px; font-family: var(--font-mono);
+    line-height: 1;
+  }
+
+  #start-screen h2 {
+    font-size: 14px; letter-spacing: 0.2em; text-transform: uppercase;
+    font-weight: normal; margin-bottom: 10px;
+  }
+
+  #start-screen p {
+    font-size: 12px; color: var(--text-muted); line-height: 1.9;
+    max-width: 300px; margin-bottom: 32px;
+    font-family: var(--font-mono); letter-spacing: 0.04em;
+  }
+
+  #start-btn { font-size: 11px; padding: 13px 40px; flex: unset; }
+
+  .db-status-msg {
+    margin-top: 16px; font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.1em; color: var(--text-muted);
+  }
+  .db-status-msg.ok  { color: var(--ok); }
+  .db-status-msg.err { color: var(--warn); }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed; bottom: 80px; left: 50%;
+    transform: translateX(-50%) translateY(16px);
+    background: var(--accent); color: #f4f1eb;
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em;
+    padding: 8px 20px; border-radius: 2px;
+    opacity: 0; transition: all 0.22s; pointer-events: none;
+    white-space: nowrap; z-index: 200;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="logo">
-    <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+  <div class="header-left">
+    <h1>EAN Scanner</h1>
+    <small>EAN-13 · Artikelnummer · Abgleich</small>
   </div>
-  <h1>EAN Scanner</h1>
-  <small>EAN-8 · EAN-13</small>
+  <div id="db-badge">DB: —</div>
 </header>
 
-<!-- Start screen -->
+<!-- START SCREEN -->
 <div id="start-screen">
-  <div class="big-icon">▮▮▮▮▮▮▮▮</div>
+  <div class="start-barcode">▮▯▮▮▯▮▯▮▮▯▮▯▮▮▯▮</div>
   <h2>Barcode Scanner</h2>
-  <p>Scannt EAN-8 und EAN-13 Barcodes mit der Smartphone-Kamera.<br>Kamera auf den Barcode richten — Erkennung erfolgt automatisch.</p>
-  <button id="start-btn" onclick="startScanner()">KAMERA STARTEN</button>
+  <p>Scannt EAN-8 / EAN-13 Codes und gleicht sie gegen die Artikeldatenbank ab. Export als Excel.</p>
+  <button id="start-btn" class="primary" onclick="init()">KAMERA STARTEN</button>
+  <div id="db-status-msg" class="db-status-msg">Lade Artikeldaten…</div>
 </div>
 
-<!-- Scanner (hidden initially) -->
+<!-- SCANNER UI -->
 <div id="scanner-ui" style="display:none; flex-direction:column; flex:1;">
+
   <div id="scanner-wrap">
     <div id="interactive" class="viewport"></div>
     <div class="scan-overlay">
@@ -449,235 +335,346 @@
 
   <div id="status-bar">
     <div id="status-dot"></div>
-    <span id="status-text">Initialisiere Kamera…</span>
+    <span id="status-text">Initialisiere…</span>
   </div>
 
   <div id="controls">
     <button id="pause-btn" onclick="togglePause()" disabled>PAUSE</button>
-    <button id="clear-btn" onclick="clearResults()">LÖSCHEN</button>
-    <button id="stop-btn" onclick="stopScanner()">STOP</button>
+    <button class="danger" onclick="clearResults()">LÖSCHEN</button>
+    <button onclick="stopScanner()">STOP</button>
   </div>
+
+  <div id="last-scan"></div>
 
   <div id="results-section">
     <div class="section-header">
-      <span>ERGEBNISSE</span>
-      <span id="result-count">0</span>
+      <span>SCAN-LISTE</span>
+      <span id="scan-count">0 Artikel</span>
     </div>
-    <div id="results-list">
+    <div id="results-body">
       <div class="empty-state">
-        <div class="big">|||||||||||||||</div>
-        <p>Noch keine Codes gescannt.<br>Barcode in den Rahmen halten.</p>
+        <div class="em-icon">▮▮▮▮▮▮▮▮▮▮▮</div>
+        <p>Noch keine Scans.<br>Barcode in den Rahmen halten.</p>
       </div>
     </div>
-    <p class="copy-hint">↑ Code antippen zum Kopieren</p>
   </div>
+
+  <div id="export-bar">
+    <button class="primary" onclick="exportExcel()" style="flex:2">EXCEL EXPORTIEREN</button>
+    <button onclick="clearResults()" class="danger">LISTE LEEREN</button>
+  </div>
+
 </div>
 
-<div id="toast">Kopiert!</div>
+<div id="toast"></div>
 
 <script>
-  let scanning = false;
-  let paused = false;
-  let results = [];
-  const DEBOUNCE_MS = 1500;
-  let lastCode = '';
-  let lastCodeTime = 0;
+// ── STATE ──────────────────────────────────────────────────────────────────
+let artikelDB = {};
+let dbLoaded = false;
+let scans = [];          // [{ ean, artnr, known, time, complete }]
+let scanning = false;
+let paused = false;
+let lastCode = '';
+let lastCodeTime = 0;
+const DEBOUNCE = 1200;
 
-  function setStatus(text, state) {
-    document.getElementById('status-text').textContent = text;
-    const dot = document.getElementById('status-dot');
-    dot.className = state || '';
+// Pairing buffer
+let pendingEAN = null;       // { code, time }
+let pendingART = null;       // { code, time }
+let pairTimeout = null;
+const PAIR_WINDOW = 6000;    // ms to wait for second barcode
+
+// ── LOAD XLSX ──────────────────────────────────────────────────────────────
+async function loadArtikelDB() {
+  const msgEl = document.getElementById('db-status-msg');
+  const badge = document.getElementById('db-badge');
+  try {
+    const res = await fetch('./rs.xlsx');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const arrayBuffer = await res.arrayBuffer();
+    const wb = XLSX.read(arrayBuffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    let count = 0;
+    for (const row of rows) {
+      const raw = row[0];
+      if (raw === '' || raw === null || raw === undefined) continue;
+      const ean = String(raw).trim().replace(/\D/g, '');
+      if (!ean) continue;
+      artikelDB[ean] = true;
+      count++;
+    }
+    dbLoaded = true;
+    badge.textContent = 'DB: ' + count + ' Artikel';
+    badge.className = 'loaded';
+    msgEl.textContent = '✓ ' + count + ' Artikel geladen';
+    msgEl.className = 'db-status-msg ok';
+  } catch(e) {
+    badge.textContent = 'DB: Fehler';
+    badge.className = 'error';
+    msgEl.textContent = '⚠ rs.xlsx nicht gefunden — Scans werden als "kein Rückstand" markiert';
+    msgEl.className = 'db-status-msg err';
+  }
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+async function init() {
+  document.getElementById('start-screen').style.display = 'none';
+  const ui = document.getElementById('scanner-ui');
+  ui.style.display = 'flex';
+  const wrap = document.getElementById('scanner-wrap');
+  wrap.style.height = Math.round(window.innerWidth * 0.62) + 'px';
+  setStatus('Initialisiere Kamera…', '');
+
+  Quagga.init({
+    inputStream: {
+      name: 'Live', type: 'LiveStream',
+      target: document.querySelector('#interactive'),
+      constraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      area: { top: '20%', right: '5%', left: '5%', bottom: '20%' },
+    },
+    decoder: {
+      readers: ['ean_reader', 'ean_8_reader', 'code_128_reader'],
+      debug: { showCanvas:false, showPatches:false, showFoundPatches:false,
+               showSkeleton:false, showLabels:false, showPatchLabels:false }
+    },
+    locate: true,
+    numOfWorkers: navigator.hardwareConcurrency > 2 ? 2 : 1,
+    frequency: 10,
+  }, err => {
+    if (err) { setStatus('Kamera-Fehler: ' + err.message, 'error'); return; }
+    Quagga.start();
+    scanning = true;
+    document.getElementById('pause-btn').disabled = false;
+    setStatus('Scannt — Barcode in Rahmen halten', 'active');
+  });
+
+  Quagga.onDetected(onDetected);
+}
+
+// ── DETECTION ─────────────────────────────────────────────────────────────
+function onDetected(result) {
+  if (paused) return;
+  const code = result.codeResult.code.trim();
+  const format = result.codeResult.format;
+  const now = Date.now();
+
+  // Debounce same code
+  if (code === lastCode && (now - lastCodeTime) < DEBOUNCE) return;
+  lastCode = code;
+  lastCodeTime = now;
+
+  const isEAN   = (format === 'ean_13' || format === 'ean_8') && validateEAN(code);
+  const isART   = format === 'code_128' && /^\d{10}$/.test(code);
+
+  if (!isEAN && !isART) return;
+
+  // Duplicate guard — ignore if already fully in scans list
+  if (isEAN  && scans.some(s => s.ean   === code && s.complete)) return;
+  if (isART  && scans.some(s => s.artnr === code && s.complete)) return;
+
+  doFlash();
+
+  if (isEAN) {
+    pendingEAN = { code, time: now };
+    setStatus('EAN erfasst — jetzt Artikelnummer scannen…', 'active');
+  } else {
+    pendingART = { code, time: now };
+    setStatus('Artikelnummer erfasst — jetzt EAN scannen…', 'active');
   }
 
-  function startScanner() {
-    document.getElementById('start-screen').style.display = 'none';
-    const ui = document.getElementById('scanner-ui');
-    ui.style.display = 'flex';
+  tryPair(now);
+}
 
-    // Set viewport height (4:3 ish)
-    const wrap = document.getElementById('scanner-wrap');
-    wrap.style.height = Math.round(window.innerWidth * 0.65) + 'px';
+function tryPair(now) {
+  clearTimeout(pairTimeout);
 
-    setStatus('Initialisiere Kamera…', '');
-
-    Quagga.init({
-      inputStream: {
-        name: 'Live',
-        type: 'LiveStream',
-        target: document.querySelector('#interactive'),
-        constraints: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-        area: {
-          top: '20%',
-          right: '5%',
-          left: '5%',
-          bottom: '20%',
-        },
-      },
-      decoder: {
-        readers: ['ean_reader', 'ean_8_reader'],
-        debug: { showCanvas: false, showPatches: false, showFoundPatches: false,
-                 showSkeleton: false, showLabels: false, showPatchLabels: false,
-                 showRemainingPatchLabels: false }
-      },
-      locate: true,
-      numOfWorkers: navigator.hardwareConcurrency > 2 ? 2 : 1,
-      frequency: 10,
-    }, function(err) {
-      if (err) {
-        setStatus('Kamera-Fehler: ' + err.message, 'error');
-        return;
-      }
-      Quagga.start();
-      scanning = true;
-      paused = false;
-      document.getElementById('pause-btn').disabled = false;
-      setStatus('Scannt — Barcode in Rahmen halten', 'active');
-    });
-
-    Quagga.onDetected(onDetected);
-    Quagga.onProcessed(onProcessed);
-  }
-
-  function onDetected(result) {
-    if (paused) return;
-    const code = result.codeResult.code;
-    const format = result.codeResult.format;
-    const now = Date.now();
-
-    // Debounce same code
-    if (code === lastCode && (now - lastCodeTime) < DEBOUNCE_MS) return;
-    lastCode = code;
-    lastCodeTime = now;
-
-    // Validate EAN checksum
-    if (!validateEAN(code)) return;
-
-    // Flash
-    const flash = document.getElementById('flash');
-    flash.classList.add('active');
-    setTimeout(() => flash.classList.remove('active'), 120);
-
-    // Haptic
-    if (navigator.vibrate) navigator.vibrate(60);
-
-    addResult(code, format);
-    setStatus('✓ ' + code + ' erkannt', 'found');
-    setTimeout(() => {
-      if (scanning && !paused) setStatus('Scannt — Barcode in Rahmen halten', 'active');
-    }, 2000);
-  }
-
-  function onProcessed(result) {
-    // Keep processing but don't draw debug overlays
-  }
-
-  function validateEAN(code) {
-    if (!/^\d{8}$|^\d{13}$/.test(code)) return false;
-    const digits = code.split('').map(Number);
-    const check = digits.pop();
-    const sum = digits.reduce((acc, d, i) => {
-      return acc + (code.length === 13 ? (i % 2 === 0 ? d : d * 3) : (i % 2 === 0 ? d * 3 : d));
-    }, 0);
-    return (10 - (sum % 10)) % 10 === check;
-  }
-
-  function addResult(code, format) {
-    const typeLabel = format === 'ean_8' ? 'EAN-8' : 'EAN-13';
-    const time = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-    results.unshift({ code, type: typeLabel, time });
-
-    const list = document.getElementById('results-list');
-
-    // Remove empty state
-    const empty = list.querySelector('.empty-state');
-    if (empty) empty.remove();
-
-    const item = document.createElement('div');
-    item.className = 'result-item new';
-    item.innerHTML = `
-      <span class="result-num">${results.length}</span>
-      <span class="result-code">${code}</span>
-      <div class="result-meta">
-        <div class="result-type">${typeLabel}</div>
-        <div class="result-time">${time}</div>
-      </div>
-    `;
-    item.onclick = () => copyCode(code, item);
-
-    list.prepend(item);
-    setTimeout(() => item.classList.remove('new'), 600);
-
-    document.getElementById('result-count').textContent = results.length;
-  }
-
-  async function copyCode(code, el) {
-    try {
-      await navigator.clipboard.writeText(code);
-      showToast('Kopiert: ' + code);
-    } catch {
-      // Fallback
-      const ta = document.createElement('textarea');
-      ta.value = code;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      showToast('Kopiert: ' + code);
+  // Both present and recent enough → commit pair
+  if (pendingEAN && pendingART) {
+    const ageDiff = Math.abs(pendingEAN.time - pendingART.time);
+    if (ageDiff < PAIR_WINDOW) {
+      commitScan(pendingEAN.code, pendingART.code, true);
+      pendingEAN = null;
+      pendingART = null;
+      return;
     }
   }
 
-  function showToast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 1800);
-  }
-
-  function togglePause() {
-    paused = !paused;
-    const btn = document.getElementById('pause-btn');
-    const line = document.getElementById('scan-line');
-    if (paused) {
-      btn.textContent = 'WEITER';
-      btn.classList.add('primary');
-      line.classList.add('paused');
-      setStatus('Pausiert', '');
-    } else {
-      btn.textContent = 'PAUSE';
-      btn.classList.remove('primary');
-      line.classList.remove('paused');
-      setStatus('Scannt — Barcode in Rahmen halten', 'active');
+  // Wait for partner; commit as incomplete after timeout
+  pairTimeout = setTimeout(() => {
+    if (pendingEAN || pendingART) {
+      const ean   = pendingEAN ? pendingEAN.code : '—';
+      const artnr = pendingART ? pendingART.code : '—';
+      commitScan(ean, artnr, false);
+      pendingEAN = null;
+      pendingART = null;
     }
+  }, PAIR_WINDOW);
+}
+
+function commitScan(ean, artnr, complete) {
+  const known = artnr !== '—' && artikelDB[artnr] === true;
+  const time  = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+
+  scans.unshift({ ean, artnr, known, time, complete });
+
+  if (navigator.vibrate) navigator.vibrate(60);
+  showLastScan(ean, artnr, known, complete);
+  renderTable();
+  updateExportBar();
+  const statusLabel = complete ? '' : ' (unvollständig)';
+  setStatus((known ? '✓ ' : '⚠ ') + artnr + (known ? ' — Rückstand' : ' — kein Rückstand') + statusLabel, 'found');
+  setTimeout(() => { if (scanning && !paused) setStatus('Scannt — Barcode in Rahmen halten', 'active'); }, 2500);
+}
+
+function doFlash() {
+  const flash = document.getElementById('flash');
+  flash.classList.add('active');
+  setTimeout(() => flash.classList.remove('active'), 100);
+}
+
+function validateEAN(code) {
+  if (!/^\d{8}$|^\d{13}$/.test(code)) return false;
+  const digits = code.split('').map(Number);
+  const check = digits.pop();
+  const len = digits.length + 1;
+  const sum = digits.reduce((acc, d, i) =>
+    acc + (len === 13 ? (i % 2 === 0 ? d : d * 3) : (i % 2 === 0 ? d * 3 : d)), 0);
+  return (10 - (sum % 10)) % 10 === check;
+}
+
+// ── LAST SCAN CARD ─────────────────────────────────────────────────────────
+function showLastScan(ean, artnr, known, complete) {
+  const el = document.getElementById('last-scan');
+  el.className = known ? 'known' : 'unknown';
+  el.style.display = 'flex';
+  const incompleteNote = !complete ? '<div class="ls-name" style="color:var(--warn);font-size:10px;">⚠ unvollständig</div>' : '';
+  el.innerHTML = `
+    <span class="ls-icon">${known ? '✓' : '⚠'}</span>
+    <div>
+      <div class="ls-code">${artnr !== '—' ? artnr : ean}</div>
+      <div class="ls-name">EAN: ${ean}</div>
+      ${incompleteNote}
+    </div>
+    <span class="ls-tag">${known ? 'RÜCKSTAND' : 'KEIN RÜCKSTAND'}</span>
+  `;
+}
+
+// ── TABLE ──────────────────────────────────────────────────────────────────
+function renderTable() {
+  const container = document.getElementById('results-body');
+  if (scans.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="em-icon">▮▮▮▮▮▮▮▮▮▮▮</div><p>Noch keine Scans.<br>Barcode in den Rahmen halten.</p></div>`;
+    document.getElementById('scan-count').textContent = '0 Artikel';
+    return;
   }
 
-  function clearResults() {
-    results = [];
-    lastCode = '';
-    lastCodeTime = 0;
-    const list = document.getElementById('results-list');
-    list.innerHTML = `<div class="empty-state">
-      <div class="big">|||||||||||||||</div>
-      <p>Noch keine Codes gescannt.<br>Barcode in den Rahmen halten.</p>
-    </div>`;
-    document.getElementById('result-count').textContent = '0';
-  }
+  document.getElementById('scan-count').textContent = scans.length + ' Artikel';
 
-  function stopScanner() {
-    if (scanning) {
-      Quagga.offDetected(onDetected);
-      Quagga.offProcessed(onProcessed);
-      Quagga.stop();
-      scanning = false;
-    }
-    document.getElementById('scanner-ui').style.display = 'none';
-    document.getElementById('start-screen').style.display = 'flex';
-    clearResults();
+  let html = `<table><thead><tr>
+    <th>#</th><th>EAN</th><th>Artikelnr.</th><th>Status</th><th>Zeit</th>
+  </tr></thead><tbody>`;
+
+  scans.forEach((s, i) => {
+    const cls = !s.complete ? 'pending-row' : (s.known ? '' : 'unknown-row');
+    html += `<tr class="${cls}">
+      <td class="td-num">${scans.length - i}</td>
+      <td class="td-ean">${s.ean}</td>
+      <td class="td-ean">${s.artnr}</td>
+      <td class="td-name">${s.known ? 'Rückstand' : 'kein Rückstand'}${!s.complete ? ' ?' : ''}</td>
+      <td class="td-time">${s.time}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ── EXPORT EXCEL ───────────────────────────────────────────────────────────
+function exportExcel() {
+  if (scans.length === 0) { showToast('Keine Scans vorhanden'); return; }
+
+  const wsData = [['EAN', 'Artikelnummer', 'Status', 'Scanzeit']];
+  scans.forEach(s => {
+    wsData.push([
+      s.ean,
+      s.artnr,
+      s.known ? 'Rückstand' : 'kein Rückstand',
+      s.time
+    ]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 16 }, { wch: 14 }, { wch: 16 }, { wch: 12 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Scans');
+
+  const date = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `EAN_Scans_${date}.xlsx`);
+  showToast('Excel gespeichert ✓');
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function updateExportBar() {
+  const bar = document.getElementById('export-bar');
+  bar.style.display = scans.length > 0 ? 'flex' : 'none';
+}
+
+function clearResults() {
+  scans = [];
+  lastCode = '';
+  lastCodeTime = 0;
+  pendingEAN = null;
+  pendingART = null;
+  clearTimeout(pairTimeout);
+  document.getElementById('last-scan').style.display = 'none';
+  renderTable();
+  updateExportBar();
+}
+
+function togglePause() {
+  paused = !paused;
+  const btn = document.getElementById('pause-btn');
+  const line = document.getElementById('scan-line');
+  if (paused) {
+    btn.textContent = 'WEITER';
+    btn.classList.add('primary');
+    line.style.animationPlayState = 'paused';
+    setStatus('Pausiert', '');
+  } else {
+    btn.textContent = 'PAUSE';
+    btn.classList.remove('primary');
+    line.style.animationPlayState = 'running';
+    setStatus('Scannt — Barcode in Rahmen halten', 'active');
   }
+}
+
+function stopScanner() {
+  if (scanning) {
+    Quagga.offDetected(onDetected);
+    Quagga.stop();
+    scanning = false;
+  }
+  document.getElementById('scanner-ui').style.display = 'none';
+  document.getElementById('start-screen').style.display = 'flex';
+  clearResults();
+}
+
+function setStatus(text, state) {
+  document.getElementById('status-text').textContent = text;
+  document.getElementById('status-dot').className = state || '';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── BOOT ───────────────────────────────────────────────────────────────────
+loadArtikelDB();
 </script>
 </body>
 </html>
