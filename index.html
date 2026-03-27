@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Budni · Rückstand-Check</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -14,7 +14,7 @@
   --ok:#00963A; --warn:#E67E00; --err:#E8002D; --info:#009FE3;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;min-height:100vh;min-height:-webkit-fill-available}
+body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;}
 
 /* HEADER */
 header{display:flex;align-items:center;gap:12px;padding:14px 20px;
@@ -453,12 +453,9 @@ function showResult(status, gtin, row) {
       </div>`;
     fields.appendChild(det);
   }
-  // Show popup and auto-dismiss after 3s
+  // Show popup – manual dismiss only
   const popup = document.getElementById('scan-popup');
   popup.classList.add('show');
-  clearTimeout(popup._timer);
-  popup._timer = setTimeout(() => popup.classList.remove('show'), 3000);
-  popup.onclick = () => { clearTimeout(popup._timer); popup.classList.remove('show'); };
 
   // screen flash
   const fc={hit:'rgba(232,0,45,.15)',avail:'rgba(0,159,227,.12)',ok:'rgba(0,150,58,.12)',nors:'rgba(230,126,0,.1)'};
@@ -542,6 +539,12 @@ function toast(msg){const t=document.createElement('div');t.className='toast';t.
 <div id="scan-popup">
   <div id="resBanner" class="res-banner"></div>
   <div class="res-fields" id="resFields"></div>
+  <div style="padding:10px;background:#fff;border-top:1px solid #D0DCF0;">
+    <button onclick="document.getElementById('scan-popup').classList.remove('show')"
+      style="width:100%;background:#003B6E;color:#fff;border:none;padding:11px;
+      font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
+      border-radius:6px;cursor:pointer;letter-spacing:.06em;">OK</button>
+  </div>
 </div>
 </body>
 </html>
