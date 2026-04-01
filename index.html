@@ -14,7 +14,8 @@
   --ok:#00963A; --warn:#E67E00; --err:#E8002D; --info:#009FE3;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;}
+body{background:var(--bg);color:var(--t);font-family:'DM Sans',sans-serif;
+  min-height:100vh;display:flex;flex-direction:column}
 
 /* HEADER */
 header{display:flex;align-items:center;gap:12px;padding:14px 20px;
@@ -27,7 +28,7 @@ header{display:flex;align-items:center;gap:12px;padding:14px 20px;
 .hs b{font-size:17px;display:block;line-height:1;color:#009FE3}
 
 /* LAYOUT */
-.app{display:grid;grid-template-columns:360px 1fr}
+.app{flex:1;display:grid;grid-template-columns:360px 1fr;min-height:0}
 @media(max-width:740px){.app{grid-template-columns:1fr}}
 
 /* LEFT */
@@ -69,14 +70,28 @@ input[type=file]{display:none}
 .cam-hint{position:absolute;bottom:8px;left:0;right:0;text-align:center;
   font-family:'Space Mono',monospace;font-size:10px;color:rgba(255,255,255,.45)}
 
-.cam-controls{padding:10px 12px;display:flex;gap:8px;align-items:center;
+.cam-controls{padding:10px 12px;display:flex;flex-direction:column;gap:8px;
   background:#EEF3FA;border-top:1px solid var(--b)}
+.cam-row{display:flex;gap:8px;align-items:center;width:100%}
 .btn-cam{flex:1;background:#003B6E;color:#fff;border:none;padding:10px;
   font-family:'Space Mono',monospace;font-size:12px;font-weight:700;
   cursor:pointer;border-radius:4px;transition:all .15s}
 .btn-cam:hover{background:#004f96}
 .btn-cam.stop{background:var(--err);color:#fff}
+.btn-torch{flex-shrink:0;min-width:44px;background:var(--s);border:1px solid var(--b);
+  color:var(--mu);padding:10px 12px;font-family:'Space Mono',monospace;font-size:11px;
+  font-weight:700;cursor:pointer;border-radius:4px;transition:all .15s}
+.btn-torch:hover:not(:disabled){border-color:#003B6E;color:#003B6E}
+.btn-torch:disabled{opacity:.45;cursor:not-allowed}
+.btn-torch.on{border-color:#E67E00;color:#b35c00;background:#fff4e5}
 .cam-st{font-family:'Space Mono',monospace;font-size:10px;color:var(--mu)}
+
+/* FOOTER */
+.app-footer{margin-top:auto;padding:12px 20px 16px;border-top:1px solid var(--b);
+  background:var(--s2);font-family:'Space Mono',monospace;font-size:11px;text-align:center}
+.app-footer a{color:#003B6E;text-decoration:underline;text-underline-offset:3px}
+.app-footer a:hover{color:#009FE3}
+.app-footer .hint{display:block;margin-top:6px;font-size:10px;color:var(--mu);font-weight:400}
 
 /* RESULT */
 #res-card{display:none;border:1px solid var(--b);border-radius:6px;overflow:hidden;background:var(--s)}
@@ -223,7 +238,10 @@ tr:hover td{background:#1c1c1c}
         <div class="cam-hint">Barcode in den Rahmen halten</div>
       </div>
       <div class="cam-controls">
-        <button class="btn-cam" id="btnCam" onclick="toggleCam()">▶ Kamera starten</button>
+        <div class="cam-row">
+          <button type="button" class="btn-cam" id="btnCam" onclick="toggleCam()">▶ Kamera starten</button>
+          <button type="button" class="btn-torch" id="btnTorch" onclick="toggleTorch()" disabled title="Blitzlicht">🔦</button>
+        </div>
         <span class="cam-st" id="camSt">–</span>
       </div>
     </div>
@@ -254,6 +272,11 @@ tr:hover td{background:#1c1c1c}
     </div>
   </div>
 </div>
+
+<footer class="app-footer">
+  <a id="linkNewTab" href="#" target="_blank" rel="noopener noreferrer">Diese Seite in neuem Tab öffnen</a>
+  <span class="hint">Hilfreich bei Vollbild oder wenn die Adresszeile ausgeblendet ist.</span>
+</footer>
 
 <script>
 // ── RS ────────────────────────────────────────────────────────────────────────
@@ -311,6 +334,7 @@ document.getElementById('rsFile').addEventListener('change', e => {
 
 // ── CAMERA ───────────────────────────────────────────────────────────────────
 let stream = null;
+let torchOn = false;
 let decodeInterval = null;
 let lastCode = '';
 let lastTime = 0;
@@ -323,7 +347,7 @@ const reader = new ZXing.MultiFormatReader();
 reader.setHints(hints);
 
 async function toggleCam() {
-  if (stream) { stopCam(); return; }
+  if (stream) { await stopCam(); return; }
 
   const btn = document.getElementById('btnCam');
   const st  = document.getElementById('camSt');
@@ -339,16 +363,71 @@ async function toggleCam() {
     video.srcObject = stream;
     await video.play();
     st.textContent = 'Scanbereit';
+    torchOn = false;
+    updateTorchUI();
     // Pre-warm audio on camera start (user gesture active here)
     try { const a = new Audio(_beepSrc); a.volume = 0; a.play().then(() => a.pause()).catch(()=>{}); } catch(e){}
     startDecode();
   } catch(e) {
     st.textContent = 'Fehler: ' + e.message;
-    stopCam();
+    await stopCam();
   }
 }
 
-function stopCam() {
+function getVideoTrack() {
+  if (!stream) return null;
+  return stream.getVideoTracks()[0] || null;
+}
+
+function torchSupported(track) {
+  if (!track || !track.getCapabilities) return false;
+  const c = track.getCapabilities();
+  return c && c.torch === true;
+}
+
+function updateTorchUI() {
+  const btn = document.getElementById('btnTorch');
+  if (!stream) {
+    torchOn = false;
+    btn.disabled = true;
+    btn.classList.remove('on');
+    btn.title = 'Blitzlicht (Kamera zuerst starten)';
+    return;
+  }
+  const track = getVideoTrack();
+  const ok = torchSupported(track);
+  btn.disabled = !ok;
+  btn.classList.toggle('on', ok && torchOn);
+  btn.title = ok ? (torchOn ? 'Blitz ausschalten' : 'Blitz einschalten')
+    : 'Blitzlicht wird von diesem Browser oder Gerät nicht unterstützt';
+}
+
+async function toggleTorch() {
+  const track = getVideoTrack();
+  if (!track || !torchSupported(track)) return;
+  const want = !torchOn;
+  try {
+    await track.applyConstraints({ advanced: [{ torch: want }] });
+    torchOn = want;
+  } catch (e) {
+    try {
+      await track.applyConstraints({ torch: want });
+      torchOn = want;
+    } catch (e2) {
+      document.getElementById('camSt').textContent = 'Blitz: nicht möglich';
+    }
+  }
+  updateTorchUI();
+}
+
+async function stopCam() {
+  const track = getVideoTrack();
+  if (track && torchOn) {
+    try { await track.applyConstraints({ advanced: [{ torch: false }] }); } catch (e) {
+      try { await track.applyConstraints({ torch: false }); } catch (e2) {}
+    }
+  }
+  torchOn = false;
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (decodeInterval) { clearInterval(decodeInterval); decodeInterval = null; }
   video.srcObject = null;
@@ -356,6 +435,7 @@ function stopCam() {
   btn.textContent = '▶ Kamera starten';
   btn.classList.remove('stop');
   document.getElementById('camSt').textContent = 'Gestoppt';
+  updateTorchUI();
 }
 
 function startDecode() {
@@ -581,6 +661,11 @@ document.addEventListener('webkitfullscreenchange', () => {
 });
 
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
+
+(function initNewTabLink() {
+  const a = document.getElementById('linkNewTab');
+  if (a) a.href = location.href;
+})();
 </script>
 <div id="scan-popup">
   <div id="resBanner" class="res-banner"></div>
